@@ -1,13 +1,15 @@
 import asyncio
 import ast
 from openai import AsyncOpenAI
+import httpx
 
 
 def create_llm_client(config):
     """Create and return an AsyncOpenAI client with the given configuration."""
     return AsyncOpenAI(
         base_url=config['api']['openai_url'],
-        api_key=config['api']['openai_api']
+        api_key=config['api']['openai_api'],
+        http_client = httpx.AsyncClient(verify=config['api'].get('ssl_verify', True))
     )
 
 

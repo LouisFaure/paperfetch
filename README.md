@@ -67,6 +67,8 @@ openai_url = "https://api.openai.com/v1"
 openai_model = "gpt-4o-mini"
 # Number of attemps for LLM calls
 max_attempts = 3
+# Check or not SSL (use at your own risk!)
+ssl_verify = True
 
 [email]
 # Email configuration for sending results
@@ -91,6 +93,7 @@ subject_prefix = "PaperFetch Results"
 - **`openai_url`**: Base URL for the API (supports OpenAI and compatible services)
 - **`openai_model`**: Model name to use (e.g., `gpt-4o-mini`, `gpt-4`, or local model names)
 - **`max_attempts`**: Number of attemps for LLM calls (in case of unexpected output format)
+- **`ssl_verify`**: Check or not SSL of the api endpoint (use at your own risk!)
 
 #### Email Settings
 - **`smtp_server`**: SMTP server address

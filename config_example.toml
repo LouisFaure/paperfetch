@@ -14,6 +14,7 @@ openai_api = "sk-XXXXXX"
 openai_url = "http://someapiurl.com/api/v1"
 openai_model = "somemodel"
 max_attempts = 3
+ssl_verify = True
 
 [email]
 # Email configuration for sending results
