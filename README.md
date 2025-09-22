@@ -53,6 +53,10 @@ PaperFetch is an automated research paper discovery and analysis tool that searc
 [search]
 # The search query to use for finding papers
 query = "machine learning neural networks"
+# Optional: a short text describing the researcher's current interests.
+# If provided, PaperFetch will include this text alongside the query when asking the LLM
+# to rate relevance. Example: "causal inference, interpretability, healthcare"
+researcher_interests = "causal inference, interpretability, healthcare"
 # Maximum number of papers to process with LLM (set to 0 to disable LLM processing entirely)
 max_papers_for_llm = 100
 
@@ -136,7 +140,7 @@ uv run main.py "quantum computing algorithms"
 1. **Paper Discovery**: Searches CrossRef for papers published in the last 7 days matching your query
 2. **AI Analysis**: For each paper (up to your configured limit):
    - Generates 3-5 key bullet points summarizing the abstract
-   - Rates relevance to your query on a scale of 0-10
+   - Rates relevance on a scale of 0-10. If you provide `search.researcher_interests` in `config.toml`, the LLM will rate relevance using both the query and your described researcher interests (preferred when present).
 3. **Email Report**: Sends an HTML email with:
    - Papers sorted by relevance rating
    - Clickable titles linking to the papers

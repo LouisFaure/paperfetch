@@ -84,17 +84,26 @@ async def process_papers_with_llm(papers_with_abstracts, query, client, config):
         if summary_result is None:
             return title, f"Failed to get summary after {max_attempts} attempts"
         
-        # Interest rating with retry logic
+        # Interest rating with retry logic (supports optional researcher interests from config)
         rating_attempts = 3
         interest_rating = None
-        
+        researcher_interests = config.get('search', {}).get('researcher_interests')
+        # Build the user prompt: prefer researcher_interests if provided; include both if query also provided
+        if researcher_interests:
+            # Include both researcher interests and the query (if present) to give the model full context.
+            user_prompt_header = f"Researcher interests: {researcher_interests}\n\nQuery: {query}\n\n"
+            user_instructions = "Please rate the relevance of the following abstract to the researcher's interests and the query."
+        else:
+            user_prompt_header = f"Query: {query}\n\n"
+            user_instructions = "Rate the relevance of this abstract to the query."
+
         for rating_attempt in range(rating_attempts):
             try:
                 interest_response = await client.chat.completions.create(
                     model=config['api']['openai_model'],
                     messages=[
                         system_prompt_interest,
-                        {"role": "user", "content": f"Query: {query}\n\nAbstract: {abstract}\n\nRate the relevance of this abstract to the query."}
+                        {"role": "user", "content": user_prompt_header + f"Abstract: {abstract}\n\n{user_instructions}"}
                     ]
                 )
                 

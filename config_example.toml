@@ -4,6 +4,11 @@
 [search]
 # The search query to use for finding papers
 query = "the query you are looking for!"
+# Optional: a short text describing the researcher's current interests.
+# If provided, this text will be included in the LLM prompt and used alongside the query.
+researcher_interests = """
+I am currently developing a VAE model for scRNASeq that enhances interpretability. 
+I am interested in causal inference, health data, cancer research"""
 # Maximum number of papers to process with LLM (set to 0 to disable LLM processing entirely)
 max_papers_for_llm = 100
 
