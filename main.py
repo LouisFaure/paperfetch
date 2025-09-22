@@ -68,20 +68,39 @@ res = {}
 print(f"Found {len(papers_with_abstracts)} papers with abstracts:")
 print("-" * 80)
 for title, abstract in papers_with_abstracts.items():
-    response = client.chat.completions.create(
-    model=config['api']['openai_model'],
-    messages=[
-        system_prompt,
-        {"role": "user", "content": "Summarize the following abstract into 3-5 key bullet points." 
-         "Output only the Python list format:\n"
-         f"Title: {title}\n"
-         f"Abstract: {abstract}\n"
-         }]
-    )
+    # Retry logic: up to 3 attempts for each abstract
+    max_attempts = 3
+    success = False
+    
+    for attempt in range(max_attempts):
+        try:
+            response = client.chat.completions.create(
+                model=config['api']['openai_model'],
+                messages=[
+                    system_prompt,
+                    {"role": "user", "content": "Summarize the following abstract into 3-5 key bullet points."
+                     "Output only the Python list format:\n"
+                     f"Title: {title}\n"
+                     f"Abstract: {abstract}\n"
+                     }]
+            )
 
-    output = response.choices[0].message.content
-    # Safe conversion to list
-    try:
-        res[title] = ast.literal_eval(output)
-    except (ValueError, SyntaxError) as e:
-        print(f"Error parsing output: {e}")
+            output = response.choices[0].message.content
+            # Safe conversion to list
+            res[title] = ast.literal_eval(output)
+            success = True
+            break  # Success, exit retry loop
+            
+        except (ValueError, SyntaxError) as e:
+            print(f"Attempt {attempt + 1}/{max_attempts} failed for '{title[:50]}...': {e}")
+            if attempt == max_attempts - 1:
+                res[title] = f"Failed to parse output after {max_attempts} attempts, skipping paper: {title}"
+            # Continue to next attempt
+        except Exception as e:
+            print(f"Unexpected error on attempt {attempt + 1}/{max_attempts} for '{title[:50]}...': {e}")
+            if attempt == max_attempts - 1:
+                res[title] = f"Failed after {max_attempts} attempts due to unexpected error, skipping paper: {title}"
+            # Continue to next attempt
+    
+    if success:
+        print(f"Successfully processed: {title[:50]}...")
