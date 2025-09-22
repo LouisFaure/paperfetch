@@ -4,6 +4,7 @@ import tomllib
 import os
 import sys
 from datetime import datetime, timedelta
+from openai import OpenAI
 
 # Check if config.toml exists
 if not os.path.exists("config.toml"):
@@ -14,6 +15,11 @@ if not os.path.exists("config.toml"):
 # Load configuration from TOML file
 with open("config.toml", "rb") as f:
     config = tomllib.load(f)
+
+client = OpenAI(
+    base_url=config['api']['openai_url'],
+    api_key=config['api']['openai_api'] 
+)
 
 # Determine query source: command line argument or TOML config
 if len(sys.argv) > 1:
@@ -58,6 +64,19 @@ for title, abstract in papers_with_abstracts.items():
     print("-" * 80)
     break  # Remove this break to print all papers
 
-# Optionally, you can also return the dictionary for programmatic use
-# print("\nDictionary of papers with abstracts:")
-# print(papers_with_abstracts)
+response = client.chat.completions.create(
+    model=config['api']['openai_model'],
+    messages=[
+        {"role": "system", "content": "You are a scientific abstract summarizer." 
+         "Your task is to extract key points from research paper abstracts and format them as a Python list of strings."
+         "Each bullet point should be concise, informative, and capture essential information."
+         "Always output exactly in this format: ['point 1', 'point 2', 'point 3'] with no additional text or explanations."},
+        {"role": "user", "content": "Summarize the following abstract into 3-5 key bullet points." 
+         "Output only the Python list format:\n"
+         f"Title: {title}\n"
+         f"Abstract: {abstract}\n"
+         }
+    ]
+)
+
+print(response.choices[0].message.content)

@@ -8,3 +8,6 @@ query = "the query you are looking for!"
 [api]
 # Email address for CrossRef API requests (required for polite usage)
 mailto = "yourmailaddress@mail.com"
+openai_api = "sk-XXXXXX"
+openai_url = "http://someapiurl.com/api/v1"
+openai_model = "somemodel"
