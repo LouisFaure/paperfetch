@@ -11,3 +11,12 @@ mailto = "yourmailaddress@mail.com"
 openai_api = "sk-XXXXXX"
 openai_url = "http://someapiurl.com/api/v1"
 openai_model = "somemodel"
+
+[email]
+# Email configuration for sending results
+smtp_server = "smtp.gmail.com"
+smtp_port = 587
+sender_email = "yourmailaddress@mail.com"
+sender_password = "your_app_password"
+recipient_email = "recipient@mail.com"
+subject_prefix = "PaperFetch Results"
