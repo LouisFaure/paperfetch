@@ -68,7 +68,7 @@ openai_model = "gpt-4o-mini"
 # Number of attemps for LLM calls
 max_attempts = 3
 # Check or not SSL (use at your own risk!)
-ssl_verify = True
+ssl_verify = true
 
 [email]
 # Email configuration for sending results
