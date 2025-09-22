@@ -53,7 +53,7 @@ def fetch_crossref_data(query, config):
     response = requests.get(base_url, params=params)
     data = response.json()
     
-    # Create dictionary to store titles and abstracts
+    # Create dictionary to store titles, abstracts, and URLs
     papers_with_abstracts = {}
     
     # Loop through items and collect those with abstracts
@@ -63,7 +63,19 @@ def fetch_crossref_data(query, config):
         # Only include papers that have an abstract
         if "abstract" in item:
             abstract = item["abstract"]
-            papers_with_abstracts[title] = abstract
+            
+            # Get URL from DOI (preferred) or URL field
+            url = None
+            if "DOI" in item:
+                url = f"https://doi.org/{item['DOI']}"
+            elif "URL" in item:
+                url = item["URL"]
+            
+            # Store title, abstract, and URL
+            papers_with_abstracts[title] = {
+                "abstract": abstract,
+                "url": url
+            }
     
     return papers_with_abstracts, today, last_week
 
@@ -114,7 +126,9 @@ def process_papers_with_llm(papers_with_abstracts, query, client, config):
     print(f"Found {len(papers_with_abstracts)} papers with abstracts:")
     print("-" * 80)
     
-    for title, abstract in papers_with_abstracts.items():
+    for title, paper_data in papers_with_abstracts.items():
+        abstract = paper_data["abstract"]
+        url = paper_data["url"]
         # Retry logic: up to 3 attempts for each abstract
         max_attempts = 3
         success = False
@@ -170,11 +184,12 @@ def process_papers_with_llm(papers_with_abstracts, query, client, config):
                     
                     # Validate the rating is in expected range
                     if 0 <= interest_rating <= 10:
-                        # Store both summary and rating
+                        # Store summary, rating, and URL
                         if isinstance(res[title], list):  # Only if summarizer succeeded
                             res[title] = {
                                 'summary': res[title],
-                                'interest_rating': interest_rating
+                                'interest_rating': interest_rating,
+                                'url': url
                             }
                         rating_success = True
                         break  # Success, exit retry loop
@@ -188,7 +203,8 @@ def process_papers_with_llm(papers_with_abstracts, query, client, config):
                         if isinstance(res[title], list):
                             res[title] = {
                                 'summary': res[title],
-                                'interest_rating': f"Failed to get rating after {rating_attempts} attempts"
+                                'interest_rating': f"Failed to get rating after {rating_attempts} attempts",
+                                'url': url
                             }
                     # Continue to next attempt
                 except Exception as e:
@@ -198,7 +214,8 @@ def process_papers_with_llm(papers_with_abstracts, query, client, config):
                         if isinstance(res[title], list):
                             res[title] = {
                                 'summary': res[title],
-                                'interest_rating': f"Failed to get rating due to unexpected error"
+                                'interest_rating': f"Failed to get rating due to unexpected error",
+                                'url': url
                             }
                     # Continue to next attempt
             
@@ -244,6 +261,8 @@ def send_results_email(results, query, today, last_week, config):
                 h2 {{ color: #34495e; margin-top: 30px; }}
                 .paper {{ margin-bottom: 30px; padding: 15px; border: 1px solid #ecf0f1; border-radius: 5px; }}
                 .title {{ font-size: 18px; font-weight: bold; color: #2c3e50; margin-bottom: 10px; }}
+                .title a {{ color: #2c3e50; text-decoration: none; border-bottom: 1px dotted #3498db; }}
+                .title a:hover {{ color: #3498db; text-decoration: none; border-bottom: 1px solid #3498db; }}
                 .interest {{ background-color: #3498db; color: white; padding: 3px 8px; border-radius: 3px; font-size: 12px; margin-bottom: 10px; display: inline-block; }}
                 .bullet-points {{ margin-left: 20px; }}
                 .bullet-points li {{ margin-bottom: 5px; line-height: 1.4; }}
@@ -280,7 +299,12 @@ def send_results_email(results, query, today, last_week, config):
         
         for title, data, rating in sorted_papers:
             html_content += f'<div class="paper">'
-            html_content += f'<div class="title">{title}</div>'
+            
+            # Make title clickable if URL is available
+            if isinstance(data, dict) and data.get('url'):
+                html_content += f'<div class="title"><a href="{data["url"]}" target="_blank">{title}</a></div>'
+            else:
+                html_content += f'<div class="title">{title}</div>'
             
             if isinstance(data, dict):
                 # Display interest rating
