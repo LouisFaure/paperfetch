@@ -1,4 +1,4 @@
-# PaperFetch
+# paperpetch
 
 PaperFetch is an automated research paper discovery and analysis tool that searches for recent academic papers, processes them with AI for intelligent summarization and relevance scoring, and delivers the results via email.
 
@@ -23,7 +23,7 @@ PaperFetch is an automated research paper discovery and analysis tool that searc
 1. **Clone the repository**:
    ```bash
    git clone <repository-url>
-   cd PaperFetch
+   cd paperfetch
    ```
 
 2. **Install dependencies**:
@@ -171,3 +171,7 @@ PaperFetch/
 ├── pyproject.toml      # Project dependencies
 └── README.md           # This file
 ```
+
+## Contribution
+
+This project was entirely vibe coded using Claude
