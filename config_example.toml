@@ -1,0 +1,10 @@
+# PaperFetch Configuration File
+# This file contains configuration parameters for the CrossRef API search
+
+[search]
+# The search query to use for finding papers
+query = "the query you are looking for!"
+
+[api]
+# Email address for CrossRef API requests (required for polite usage)
+mailto = "yourmailaddress@mail.com"
