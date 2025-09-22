@@ -56,7 +56,9 @@ query = "machine learning neural networks"
 # Optional: a short text describing the researcher's current interests.
 # If provided, PaperFetch will include this text alongside the query when asking the LLM
 # to rate relevance. Example: "causal inference, interpretability, healthcare"
-researcher_interests = "causal inference, interpretability, healthcare"
+researcher_interests = """
+I am currently developing a VAE model for scRNASeq that enhances interpretability. 
+I am interested in causal inference, health data, cancer research"""
 # Maximum number of papers to process with LLM (set to 0 to disable LLM processing entirely)
 max_papers_for_llm = 100
 
@@ -84,28 +86,6 @@ sender_password = "your_app_password_here"
 recipient_email = "recipient@example.com"
 subject_prefix = "PaperFetch Results"
 ```
-
-### Configuration Details
-
-#### Search Settings
-- **`query`**: The search terms used to find papers on CrossRef
-- **`max_papers_for_llm`**: Maximum number of papers to process with AI. Set to 0 to disable LLM processing entirely and just get paper lists
-
-#### API Settings
-- **`mailto`**: Your email address (required by CrossRef for rate limiting)
-- **`openai_api`**: Your API key for the LLM service
-- **`openai_url`**: Base URL for the API (supports OpenAI and compatible services)
-- **`openai_model`**: Model name to use (e.g., `gpt-4o-mini`, `gpt-4`, or local model names)
-- **`max_attempts`**: Number of attemps for LLM calls (in case of unexpected output format)
-- **`ssl_verify`**: Check or not SSL of the api endpoint (use at your own risk!)
-
-#### Email Settings
-- **`smtp_server`**: SMTP server address
-- **`smtp_port`**: SMTP port (587 for TLS, 465 for SSL)
-- **`sender_email`**: Email address to send from
-- **`sender_password`**: Email password or app-specific password
-- **`recipient_email`**: Email address to receive results
-- **`subject_prefix`**: Prefix for email subjects
 
 ### Gmail Setup
 
