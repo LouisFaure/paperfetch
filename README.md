@@ -22,7 +22,7 @@ PaperFetch is an automated research paper discovery and analysis tool that searc
 
 1. **Clone the repository**:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/LouisFaure/paperfetch.git
    cd paperfetch
    ```
 
