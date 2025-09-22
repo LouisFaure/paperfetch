@@ -5,6 +5,7 @@ import os
 import sys
 from datetime import datetime, timedelta
 from openai import OpenAI
+import ast
 
 # Check if config.toml exists
 if not os.path.exists("config.toml"):
@@ -55,28 +56,32 @@ for item in data["message"]["items"]:
         abstract = item["abstract"]
         papers_with_abstracts[title] = abstract
 
+system_prompt = {"role": "system", "content": "You are a scientific abstract summarizer." 
+         "Your task is to extract key points from research paper abstracts and format them as a Python list of strings."
+         "Each bullet point should be concise, informative, and capture essential information."
+         "Always output exactly in this format: ['point 1', 'point 2', 'point 3'] with no additional text or explanations."}
+
+
+
+res = {}
 # Print the results
 print(f"Found {len(papers_with_abstracts)} papers with abstracts:")
 print("-" * 80)
 for title, abstract in papers_with_abstracts.items():
-    print(f"Title: {title}")
-    print(f"Abstract: {abstract}")
-    print("-" * 80)
-    break  # Remove this break to print all papers
-
-response = client.chat.completions.create(
+    response = client.chat.completions.create(
     model=config['api']['openai_model'],
     messages=[
-        {"role": "system", "content": "You are a scientific abstract summarizer." 
-         "Your task is to extract key points from research paper abstracts and format them as a Python list of strings."
-         "Each bullet point should be concise, informative, and capture essential information."
-         "Always output exactly in this format: ['point 1', 'point 2', 'point 3'] with no additional text or explanations."},
+        system_prompt,
         {"role": "user", "content": "Summarize the following abstract into 3-5 key bullet points." 
          "Output only the Python list format:\n"
          f"Title: {title}\n"
          f"Abstract: {abstract}\n"
-         }
-    ]
-)
+         }]
+    )
 
-print(response.choices[0].message.content)
+    output = response.choices[0].message.content
+    # Safe conversion to list
+    try:
+        res[title] = ast.literal_eval(output)
+    except (ValueError, SyntaxError) as e:
+        print(f"Error parsing output: {e}")
