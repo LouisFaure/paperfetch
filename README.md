@@ -65,6 +65,8 @@ openai_api = "sk-your-api-key-here"
 openai_url = "https://api.openai.com/v1"
 # Model name to use for processing
 openai_model = "gpt-4o-mini"
+# Number of attemps for LLM calls
+max_attempts = 3
 
 [email]
 # Email configuration for sending results
@@ -88,6 +90,7 @@ subject_prefix = "PaperFetch Results"
 - **`openai_api`**: Your API key for the LLM service
 - **`openai_url`**: Base URL for the API (supports OpenAI and compatible services)
 - **`openai_model`**: Model name to use (e.g., `gpt-4o-mini`, `gpt-4`, or local model names)
+- **`max_attempts`**: Number of attemps for LLM calls (in case of unexpected output format)
 
 #### Email Settings
 - **`smtp_server`**: SMTP server address

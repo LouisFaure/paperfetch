@@ -13,6 +13,7 @@ mailto = "yourmailaddress@mail.com"
 openai_api = "sk-XXXXXX"
 openai_url = "http://someapiurl.com/api/v1"
 openai_model = "somemodel"
+max_attempts = 3
 
 [email]
 # Email configuration for sending results

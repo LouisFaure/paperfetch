@@ -50,7 +50,7 @@ async def process_papers_with_llm(papers_with_abstracts, query, client, config):
         url = paper_data["url"]
         
         # Summarization with retry logic
-        max_attempts = 3
+        max_attempts = config['api'].get('max_attempts', 3)
         summary_result = None
         
         for attempt in range(max_attempts):
