@@ -13,4 +13,4 @@ uv.lock
 
 # other files
 config.toml
-results.pkl
+*.pkl

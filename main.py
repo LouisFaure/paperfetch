@@ -3,8 +3,9 @@ import requests
 import tomllib
 import os
 import sys
+import asyncio
 from datetime import datetime, timedelta
-from openai import OpenAI
+from openai import AsyncOpenAI
 import ast
 import pickle
 import smtplib
@@ -21,9 +22,9 @@ if not os.path.exists("config.toml"):
 with open("config.toml", "rb") as f:
     config = tomllib.load(f)
 
-client = OpenAI(
+client = AsyncOpenAI(
     base_url=config['api']['openai_url'],
-    api_key=config['api']['openai_api'] 
+    api_key=config['api']['openai_api']
 )
 
 def fetch_crossref_data(query, config):
@@ -88,14 +89,14 @@ else:
 # Fetch papers from CrossRef
 papers_with_abstracts, today, last_week = fetch_crossref_data(query, config)
 
-def process_papers_with_llm(papers_with_abstracts, query, client, config):
+async def process_papers_with_llm(papers_with_abstracts, query, client, config):
     """
-    Process papers using LLM for summarization and interest rating.
+    Process papers using LLM for summarization and interest rating concurrently.
     
     Args:
         papers_with_abstracts (dict): Dictionary of paper titles and abstracts
         query (str): Search query for relevance rating
-        client: OpenAI client instance
+        client: AsyncOpenAI client instance
         config (dict): Configuration dictionary
         
     Returns:
@@ -121,21 +122,18 @@ def process_papers_with_llm(papers_with_abstracts, query, client, config):
 
     Output only a single integer between 0 and 10 with no additional text or explanation."""}
 
-    res = {}
-    # Print the results
-    print(f"Found {len(papers_with_abstracts)} papers with abstracts:")
-    print("-" * 80)
-    
-    for title, paper_data in papers_with_abstracts.items():
+    async def process_single_paper(title, paper_data):
+        """Process a single paper with LLM summarization and interest rating."""
         abstract = paper_data["abstract"]
         url = paper_data["url"]
-        # Retry logic: up to 3 attempts for each abstract
+        
+        # Summarization with retry logic
         max_attempts = 3
-        success = False
+        summary_result = None
         
         for attempt in range(max_attempts):
             try:
-                response = client.chat.completions.create(
+                response = await client.chat.completions.create(
                     model=config['api']['openai_model'],
                     messages=[
                         system_prompt_summarizer,
@@ -147,94 +145,104 @@ def process_papers_with_llm(papers_with_abstracts, query, client, config):
                 )
 
                 output = response.choices[0].message.content
-                # Safe conversion to list
-                res[title] = ast.literal_eval(output)
-                success = True
+                summary_result = ast.literal_eval(output)
                 break  # Success, exit retry loop
                 
             except (ValueError, SyntaxError) as e:
-                print(f"Attempt {attempt + 1}/{max_attempts} failed for '{title[:50]}...': {e}")
+                print(f"Summary attempt {attempt + 1}/{max_attempts} failed for '{title[:50]}...': {e}")
                 if attempt == max_attempts - 1:
-                    res[title] = f"Failed to parse output after {max_attempts} attempts, skipping paper: {title}"
-                # Continue to next attempt
+                    return title, f"Failed to parse output after {max_attempts} attempts, skipping paper: {title}"
             except Exception as e:
-                print(f"Unexpected error on attempt {attempt + 1}/{max_attempts} for '{title[:50]}...': {e}")
+                print(f"Unexpected error on summary attempt {attempt + 1}/{max_attempts} for '{title[:50]}...': {e}")
                 if attempt == max_attempts - 1:
-                    res[title] = f"Failed after {max_attempts} attempts due to unexpected error, skipping paper: {title}"
-                # Continue to next attempt
+                    return title, f"Failed after {max_attempts} attempts due to unexpected error, skipping paper: {title}"
         
-        if success:
-            # Now get the interest rating
-            rating_attempts = 3
-            rating_success = False
-            
-            for rating_attempt in range(rating_attempts):
-                try:
-                    interest_response = client.chat.completions.create(
-                        model=config['api']['openai_model'],
-                        messages=[
-                            system_prompt_interest,
-                            {"role": "user", "content": f"Query: {query}\n\nAbstract: {abstract}\n\nRate the relevance of this abstract to the query."}
-                        ]
-                    )
+        if summary_result is None:
+            return title, f"Failed to get summary after {max_attempts} attempts"
+        
+        # Interest rating with retry logic
+        rating_attempts = 3
+        interest_rating = None
+        
+        for rating_attempt in range(rating_attempts):
+            try:
+                interest_response = await client.chat.completions.create(
+                    model=config['api']['openai_model'],
+                    messages=[
+                        system_prompt_interest,
+                        {"role": "user", "content": f"Query: {query}\n\nAbstract: {abstract}\n\nRate the relevance of this abstract to the query."}
+                    ]
+                )
+                
+                interest_output = interest_response.choices[0].message.content.strip()
+                interest_rating = int(interest_output)
+                
+                # Validate the rating is in expected range
+                if 0 <= interest_rating <= 10:
+                    break  # Success, exit retry loop
+                else:
+                    raise ValueError(f"Rating {interest_rating} is outside valid range 0-10")
                     
-                    interest_output = interest_response.choices[0].message.content.strip()
-                    # Parse as integer with validation
-                    interest_rating = int(interest_output)
-                    
-                    # Validate the rating is in expected range
-                    if 0 <= interest_rating <= 10:
-                        # Store summary, rating, and URL
-                        if isinstance(res[title], list):  # Only if summarizer succeeded
-                            res[title] = {
-                                'summary': res[title],
-                                'interest_rating': interest_rating,
-                                'url': url
-                            }
-                        rating_success = True
-                        break  # Success, exit retry loop
-                    else:
-                        raise ValueError(f"Rating {interest_rating} is outside valid range 0-10")
-                        
-                except (ValueError, TypeError) as e:
-                    print(f"Interest rating attempt {rating_attempt + 1}/{rating_attempts} failed for '{title[:50]}...': {e}")
-                    if rating_attempt == rating_attempts - 1:
-                        # Keep the summary but note rating failure
-                        if isinstance(res[title], list):
-                            res[title] = {
-                                'summary': res[title],
-                                'interest_rating': f"Failed to get rating after {rating_attempts} attempts",
-                                'url': url
-                            }
-                    # Continue to next attempt
-                except Exception as e:
-                    print(f"Unexpected error on interest rating attempt {rating_attempt + 1}/{rating_attempts} for '{title[:50]}...': {e}")
-                    if rating_attempt == rating_attempts - 1:
-                        # Keep the summary but note rating failure
-                        if isinstance(res[title], list):
-                            res[title] = {
-                                'summary': res[title],
-                                'interest_rating': f"Failed to get rating due to unexpected error",
-                                'url': url
-                            }
-                    # Continue to next attempt
-            
-            if rating_success:
-                print(f"Successfully processed with rating: {title[:50]}...")
-            else:
-                print(f"Summary processed but rating failed: {title[:50]}...")
+            except (ValueError, TypeError) as e:
+                print(f"Interest rating attempt {rating_attempt + 1}/{rating_attempts} failed for '{title[:50]}...': {e}")
+                if rating_attempt == rating_attempts - 1:
+                    interest_rating = f"Failed to get rating after {rating_attempts} attempts"
+            except Exception as e:
+                print(f"Unexpected error on interest rating attempt {rating_attempt + 1}/{rating_attempts} for '{title[:50]}...': {e}")
+                if rating_attempt == rating_attempts - 1:
+                    interest_rating = f"Failed to get rating due to unexpected error"
+        
+        # Return structured result
+        result = {
+            'summary': summary_result,
+            'interest_rating': interest_rating,
+            'url': url
+        }
+        
+        if isinstance(interest_rating, int):
+            print(f"Successfully processed with rating {interest_rating}: {title[:50]}...")
+        else:
+            print(f"Summary processed but rating failed: {title[:50]}...")
+        
+        return title, result
+
+    # Print the results
+    print(f"Found {len(papers_with_abstracts)} papers with abstracts:")
+    print("-" * 80)
+    
+    # Process all papers concurrently using asyncio.gather()
+    tasks = []
+    for title, paper_data in papers_with_abstracts.items():
+        tasks.append(process_single_paper(title, paper_data))
+    
+    # Execute all tasks concurrently
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    # Build results dictionary
+    res = {}
+    for result in results:
+        if isinstance(result, Exception):
+            print(f"Task failed with exception: {result}")
+            continue
+        title, paper_result = result
+        res[title] = paper_result
     
     return res
 
-# Process papers with LLM
-if os.path.exists("results.pkl"):
-    with open("results.pkl", "rb") as f:
-        res = pickle.load(f)
-else:
-    res = process_papers_with_llm(papers_with_abstracts, query, client, config)
-    # Save results to pickle file for potential debugging
-    with open("results.pkl", "wb") as f:
-        pickle.dump(res, f)
+async def main():
+    """Main async function to orchestrate the paper processing."""
+    # Process papers with LLM
+    if os.path.exists("results.pkl"):
+        with open("results.pkl", "rb") as f:
+            res = pickle.load(f)
+    else:
+        res = await process_papers_with_llm(papers_with_abstracts, query, client, config)
+        # Save results to pickle file for potential debugging
+        with open("results.pkl", "wb") as f:
+            pickle.dump(res, f)
+
+    # Send results via email
+    send_results_email(res, query, today, last_week, config)
 
 def send_results_email(results, query, today, last_week, config):
     """
@@ -395,5 +403,6 @@ def send_results_email(results, query, today, last_week, config):
         print("="*80)
         return False
 
-# Send results via email
-send_results_email(res, query, today, last_week, config)
+# Run the async main function
+if __name__ == "__main__":
+    asyncio.run(main())
