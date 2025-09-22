@@ -6,6 +6,7 @@ import sys
 from datetime import datetime, timedelta
 from openai import OpenAI
 import ast
+import pickle
 
 # Check if config.toml exists
 if not os.path.exists("config.toml"):
@@ -56,11 +57,26 @@ for item in data["message"]["items"]:
         abstract = item["abstract"]
         papers_with_abstracts[title] = abstract
 
-system_prompt = {"role": "system", "content": "You are a scientific abstract summarizer." 
-         "Your task is to extract key points from research paper abstracts and format them as a Python list of strings."
-         "Each bullet point should be concise, informative, and capture essential information."
-         "Always output exactly in this format: ['point 1', 'point 2', 'point 3'] with no additional text or explanations."}
+system_prompt_summarizer = {
+    "role": "system",
+    "content": """
+    You are a scientific abstract summarizer.
+    Your task is to extract key points from research paper abstracts and format them as a Python list of strings.
+    Each bullet point should be concise, informative, and capture essential information.
+    Always output exactly in this format: ['point 1', 'point 2', 'point 3'] with no additional text or explanations."""}
 
+
+system_prompt_interest = {
+    "role": "system", 
+    "content": """
+    You are a research relevance evaluator. Your task is to assess how well a research paper abstract matches a given query or research interest. Rate the relevance on a scale of 0-10 where:
+- 0: Completely unrelated
+- 1-3: Minimally related (tangential connection)
+- 4-6: Moderately related (some overlap in topics/methods)
+- 7-9: Highly related (direct relevance to query)
+- 10: Perfectly aligned with the query
+
+Output only a single integer between 0 and 10 with no additional text or explanation."""}
 
 
 res = {}
@@ -77,7 +93,7 @@ for title, abstract in papers_with_abstracts.items():
             response = client.chat.completions.create(
                 model=config['api']['openai_model'],
                 messages=[
-                    system_prompt,
+                    system_prompt_summarizer,
                     {"role": "user", "content": "Summarize the following abstract into 3-5 key bullet points."
                      "Output only the Python list format:\n"
                      f"Title: {title}\n"
@@ -103,4 +119,66 @@ for title, abstract in papers_with_abstracts.items():
             # Continue to next attempt
     
     if success:
-        print(f"Successfully processed: {title[:50]}...")
+        # Now get the interest rating
+        rating_attempts = 3
+        rating_success = False
+        
+        for rating_attempt in range(rating_attempts):
+            try:
+                interest_response = client.chat.completions.create(
+                    model=config['api']['openai_model'],
+                    messages=[
+                        system_prompt_interest,
+                        {"role": "user", "content": f"Query: {query}\n\nAbstract: {abstract}\n\nRate the relevance of this abstract to the query."}
+                    ]
+                )
+                
+                interest_output = interest_response.choices[0].message.content.strip()
+                # Parse as integer with validation
+                interest_rating = int(interest_output)
+                
+                # Validate the rating is in expected range
+                if 0 <= interest_rating <= 10:
+                    # Store both summary and rating
+                    if isinstance(res[title], list):  # Only if summarizer succeeded
+                        res[title] = {
+                            'summary': res[title],
+                            'interest_rating': interest_rating
+                        }
+                    rating_success = True
+                    break  # Success, exit retry loop
+                else:
+                    raise ValueError(f"Rating {interest_rating} is outside valid range 0-10")
+                    
+            except (ValueError, TypeError) as e:
+                print(f"Interest rating attempt {rating_attempt + 1}/{rating_attempts} failed for '{title[:50]}...': {e}")
+                if rating_attempt == rating_attempts - 1:
+                    # Keep the summary but note rating failure
+                    if isinstance(res[title], list):
+                        res[title] = {
+                            'summary': res[title],
+                            'interest_rating': f"Failed to get rating after {rating_attempts} attempts"
+                        }
+                # Continue to next attempt
+            except Exception as e:
+                print(f"Unexpected error on interest rating attempt {rating_attempt + 1}/{rating_attempts} for '{title[:50]}...': {e}")
+                if rating_attempt == rating_attempts - 1:
+                    # Keep the summary but note rating failure
+                    if isinstance(res[title], list):
+                        res[title] = {
+                            'summary': res[title],
+                            'interest_rating': f"Failed to get rating due to unexpected error"
+                        }
+                # Continue to next attempt
+        
+        if rating_success:
+            print(f"Successfully processed with rating: {title[:50]}...")
+        else:
+            print(f"Summary processed but rating failed: {title[:50]}...")
+
+with open("results.pkl", "wb") as f:
+    pickle.dump(res, f)
+
+
+with open("results.pkl", "rb") as f:
+    res = pickle.load(f)
