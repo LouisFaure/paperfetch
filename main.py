@@ -37,13 +37,27 @@ params = {
 response = requests.get(base_url, params=params)
 data = response.json()
 
-# Loop through items and check if abstract is present
+# Create dictionary to store titles and abstracts
+papers_with_abstracts = {}
+
+# Loop through items and collect those with abstracts
 for item in data["message"]["items"]:
     title = item.get("title", ["No title"])[0]
-    doi = item.get("DOI", "No DOI")
-    has_abstract = "abstract" in item
+    
+    # Only include papers that have an abstract
+    if "abstract" in item:
+        abstract = item["abstract"]
+        papers_with_abstracts[title] = abstract
 
+# Print the results
+print(f"Found {len(papers_with_abstracts)} papers with abstracts:")
+print("-" * 80)
+for title, abstract in papers_with_abstracts.items():
     print(f"Title: {title}")
-    print(f"DOI: {doi}")
-    print(f"Abstract {'FOUND ✅' if has_abstract else 'missing ❌'}")
+    print(f"Abstract: {abstract}")
     print("-" * 80)
+    break  # Remove this break to print all papers
+
+# Optionally, you can also return the dictionary for programmatic use
+# print("\nDictionary of papers with abstracts:")
+# print(papers_with_abstracts)
