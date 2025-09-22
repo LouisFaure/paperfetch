@@ -231,15 +231,10 @@ async def process_papers_with_llm(papers_with_abstracts, query, client, config):
 
 async def main():
     """Main async function to orchestrate the paper processing."""
-    # Process papers with LLM
-    if os.path.exists("results.pkl"):
-        with open("results.pkl", "rb") as f:
-            res = pickle.load(f)
-    else:
-        res = await process_papers_with_llm(papers_with_abstracts, query, client, config)
-        # Save results to pickle file for potential debugging
-        with open("results.pkl", "wb") as f:
-            pickle.dump(res, f)
+    res = await process_papers_with_llm(papers_with_abstracts, query, client, config)
+    # Save results to pickle file for potential debugging
+    with open("results.pkl", "wb") as f:
+        pickle.dump(res, f)
 
     # Send results via email
     send_results_email(res, query, today, last_week, config)
