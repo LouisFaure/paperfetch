@@ -3,6 +3,7 @@ import requests
 import tomllib
 import os
 import sys
+from datetime import datetime, timedelta
 
 # Check if config.toml exists
 if not os.path.exists("config.toml"):
@@ -20,11 +21,15 @@ if len(sys.argv) > 1:
 else:
     query = config["search"]["query"]
 
+# Calculate dynamic date range
+today = datetime.now().date()
+last_week = today - timedelta(days=7)
+
 # Define search parameters
 base_url = "https://api.crossref.org/works"
 params = {
     "query": query,
-    "filter": "from-pub-date:2025-09-15,until-pub-date:2025-09-22",
+    "filter": f"from-pub-date:{last_week},until-pub-date:{today}",
     "mailto": config["api"]["mailto"],
 }
 
