@@ -5,7 +5,7 @@
 # The search query to use for finding papers
 query = "the query you are looking for!"
 # Maximum number of papers to process with LLM (set to 0 to disable LLM processing entirely)
-max_papers_for_llm = 10
+max_papers_for_llm = 100
 
 [api]
 # Email address for CrossRef API requests (required for polite usage)
