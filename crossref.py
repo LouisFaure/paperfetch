@@ -6,7 +6,7 @@ def fetch_crossref_data(query, config):
     Fetch research papers from CrossRef API for the last week.
     
     Args:
-        query (str): Search query for papers
+        query (list): List of search terms to be joined with space
         config (dict): Configuration dictionary containing API settings
         
     Returns:
@@ -16,10 +16,13 @@ def fetch_crossref_data(query, config):
     today = datetime.now().date()
     last_week = today - timedelta(days=7)
     
+    # Build query string by joining terms with space
+    query_string = ' '.join(query)
+    
     # Define search parameters
     base_url = "https://api.crossref.org/works"
     params = {
-        "query": query,
+        "query": query_string,
         "filter": f"from-pub-date:{last_week},until-pub-date:{today}",
         "mailto": config["api"]["mailto"],
     }

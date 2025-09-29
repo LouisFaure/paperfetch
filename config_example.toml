@@ -3,7 +3,12 @@
 
 [search]
 # The search query to use for finding papers
-query = "the query you are looking for!"
+# Can be a list of terms or a single string (for backward compatibility)
+# When using a list, terms are joined with spaces for CrossRef and with " AND " for Nature/Springer
+query = ["single-cell", "tissue ecosystem"]
+# Alternative single string format (deprecated but still supported):
+# query = "single-cell tissue ecosystem"
+
 # Optional: a short text describing the researcher's current interests.
 # If provided, this text will be included in the LLM prompt and used alongside the query.
 researcher_interests = """
@@ -20,6 +25,11 @@ openai_url = "http://someapiurl.com/api/v1"
 openai_model = "somemodel"
 max_attempts = 3
 ssl_verify = true
+
+# Nature/Springer API configuration (optional)
+# Set enable_springer to true to also search Nature/Springer databases
+enable_springer = false
+springer_api_key = "your_springer_api_key_here"
 
 [email]
 # Email configuration for sending results

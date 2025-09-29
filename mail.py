@@ -9,7 +9,7 @@ def send_results_email(results, query, today, last_week, config):
     
     Args:
         results (dict): Processed paper results with summaries and ratings
-        query (str): Search query used
+        query (list or str): Search query used (list of terms or single string)
         today (date): Today's date
         last_week (date): Last week's date
         config (dict): Configuration dictionary containing email settings
@@ -19,6 +19,9 @@ def send_results_email(results, query, today, last_week, config):
     """
     def format_email_content(results, query, today, last_week, config):
         """Format the research results into HTML email content. Includes researcher interests from config if present."""
+        # Convert query to string if it's a list
+        query_str = ' '.join(query) if isinstance(query, list) else query
+        
         html_content = f"""
         <html>
         <head>
@@ -49,7 +52,7 @@ def send_results_email(results, query, today, last_week, config):
             <h1>PaperFetch Results</h1>
             
             <div class="query-info">
-                <strong>Search Query:</strong> {query}<br>
+                <strong>Search Query:</strong> {query_str}<br>
                 <strong>Date Range:</strong> {last_week} to {today}<br>
                 <strong>Papers Found:</strong> {len(results)}
             </div>
@@ -146,8 +149,11 @@ def send_results_email(results, query, today, last_week, config):
 
     # Check if there are valid results to email
     if results and any(isinstance(data, dict) for data in results.values()):
+        # Convert query to string for email subject
+        query_str = ' '.join(query) if isinstance(query, list) else query
+        
         # Create email subject with query and date
-        subject = f"{config['email']['subject_prefix']}: {query} ({today})"
+        subject = f"{config['email']['subject_prefix']}: {query_str} ({today})"
         
         # Format email content (pass config so formatter can include researcher_interests)
         html_content = format_email_content(results, query, today, last_week, config)
@@ -180,7 +186,7 @@ def send_no_llm_processing_email(papers_with_abstracts, query, today, last_week,
     
     Args:
         papers_with_abstracts (dict): Dictionary of paper titles and abstracts
-        query (str): Search query used
+        query (list or str): Search query used (list of terms or single string)
         today (date): Today's date
         last_week (date): Last week's date
         config (dict): Configuration dictionary containing email settings
@@ -189,6 +195,9 @@ def send_no_llm_processing_email(papers_with_abstracts, query, today, last_week,
     """
     def format_no_llm_email_content(papers_with_abstracts, query, today, last_week, paper_count, max_papers_for_llm, config):
         """Format email content when LLM processing is skipped. Includes researcher_interests if present in config."""
+        # Convert query to string if it's a list
+        query_str = ' '.join(query) if isinstance(query, list) else query
+        
         html_content = f"""
         <html>
         <head>
@@ -218,7 +227,7 @@ def send_no_llm_processing_email(papers_with_abstracts, query, today, last_week,
             </div>
             
             <div class="query-info">
-                <strong>Search Query:</strong> {query}<br>
+                <strong>Search Query:</strong> {query_str}<br>
                 <strong>Date Range:</strong> {last_week} to {today}<br>
                 <strong>Papers Found:</strong> {paper_count}<br>
                 <strong>LLM Processing Limit:</strong> {max_papers_for_llm}
@@ -280,7 +289,8 @@ def send_no_llm_processing_email(papers_with_abstracts, query, today, last_week,
             return False
 
     # Create email subject
-    subject = f"{config['email']['subject_prefix']}: LLM Skipped - {paper_count} papers found ({query}) ({today})"
+    query_str = ' '.join(query) if isinstance(query, list) else query
+    subject = f"{config['email']['subject_prefix']}: LLM Skipped - {paper_count} papers found ({query_str}) ({today})"
     
     # Format email content
     html_content = format_no_llm_email_content(papers_with_abstracts, query, today, last_week, paper_count, max_papers_for_llm, config)

@@ -4,12 +4,13 @@ PaperFetch is an automated research paper discovery and analysis tool that searc
 
 ## Features
 
-- 🔍 **Automated Paper Discovery**: Searches CrossRef API for papers published in the last week
+- 🔍 **Multi-Source Paper Discovery**: Searches CrossRef API and optionally Nature/Springer databases for papers published in the last week
 - 🤖 **AI-Powered Analysis**: Uses LLM to summarize papers and rate their relevance to your research interests
 - 📧 **Email Delivery**: Sends beautifully formatted HTML email reports with paper summaries and ratings
 - ⚡ **Concurrent Processing**: Efficiently processes multiple papers simultaneously
 - 🛡️ **Smart Rate Limiting**: Configurable limits to prevent excessive API usage
 - 🔄 **Retry Logic**: Robust error handling with automatic retries for API calls
+- 🔎 **Flexible Query Syntax**: Supports both list-based and string-based queries with multi-term search
 
 ## Prerequisites
 
@@ -17,6 +18,7 @@ PaperFetch is an automated research paper discovery and analysis tool that searc
 - [UV package manager](https://docs.astral.sh/uv/) (recommended) or pip
 - Access to an OpenAI-compatible API (OpenAI, local LLM server, etc.)
 - Email account with SMTP access (Gmail, etc.)
+- (Optional) Springer API key for Nature/Springer database access
 
 ## Installation
 
@@ -52,7 +54,12 @@ PaperFetch is an automated research paper discovery and analysis tool that searc
 
 [search]
 # The search query to use for finding papers
-query = "machine learning neural networks"
+# Can be a list of terms or a single string (for backward compatibility)
+# When using a list, terms are joined with spaces for CrossRef and with " AND " for Nature/Springer
+query = ["single-cell", "tissue ecosystem"]
+# Alternative single string format (deprecated but still supported):
+# query = "single-cell tissue ecosystem"
+
 # Optional: a short text describing the researcher's current interests.
 # If provided, PaperFetch will include this text alongside the query when asking the LLM
 # to rate relevance. Example: "causal inference, interpretability, healthcare"
@@ -76,6 +83,11 @@ max_attempts = 3
 # Check or not SSL (use at your own risk!)
 ssl_verify = true
 
+# Nature/Springer API configuration (optional)
+# Set enable_springer to true to also search Nature/Springer databases
+enable_springer = false
+springer_api_key = "your_springer_api_key_here"
+
 [email]
 # Email configuration for sending results
 smtp_server = "smtp.gmail.com"
@@ -94,6 +106,17 @@ For Gmail users:
 2. Generate an App Password: Google Account → Security → 2-Step Verification → App passwords
 3. Use the App Password in the `sender_password` field
 
+### Nature/Springer API Setup (Optional)
+
+To enable searching Nature and Springer journals:
+1. Register for a Springer API key at [Springer Developer Portal](https://dev.springernature.com/)
+2. Add your API key to `config.toml` under `[api]` section:
+   ```toml
+   enable_springer = true
+   springer_api_key = "your_springer_api_key_here"
+   ```
+3. When enabled, PaperFetch will search both CrossRef and Nature/Springer databases and merge the results
+
 ## Usage
 
 ### Basic Usage
@@ -110,14 +133,28 @@ uv run --script main.py
 
 ### Custom Query
 
-Override the config query with a command-line argument:
+Override the config query with command-line arguments:
+
+**Single search term:**
 ```bash
-uv run main.py "quantum computing algorithms"
+uv run main.py "quantum computing"
 ```
+
+**Multiple search terms:**
+```bash
+uv run main.py "single-cell" "tissue ecosystem"
+```
+
+When using multiple command-line arguments, each term is treated separately and joined appropriately for each API:
+- **CrossRef**: Terms joined with spaces (e.g., `single-cell tissue ecosystem`)
+- **Nature/Springer**: Terms joined with AND logic (e.g., `"single-cell" AND "tissue ecosystem"`)
 
 ### What Happens
 
-1. **Paper Discovery**: Searches CrossRef for papers published in the last 7 days matching your query
+1. **Paper Discovery**: 
+   - Searches CrossRef for papers published in the last 7 days matching your query
+   - If enabled, also searches Nature/Springer databases
+   - Merges results from both sources (duplicates by title are handled)
 2. **AI Analysis**: For each paper (up to your configured limit):
    - Generates 3-5 key bullet points summarizing the abstract
    - Rates relevance on a scale of 0-10. If you provide `search.researcher_interests` in `config.toml`, the LLM will rate relevance using both the query and your described researcher interests (preferred when present).
@@ -154,6 +191,7 @@ If more papers are found than your `max_papers_for_llm` setting, the tool will:
 PaperFetch/
 ├── main.py              # Main script and orchestration
 ├── crossref.py          # CrossRef API interaction
+├── nature.py            # Nature/Springer API interaction
 ├── llm.py              # AI processing and summarization
 ├── mail.py             # Email formatting and sending
 ├── config_example.toml  # Configuration template
