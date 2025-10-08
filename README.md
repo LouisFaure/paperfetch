@@ -68,6 +68,8 @@ I am currently developing a VAE model for scRNASeq that enhances interpretabilit
 I am interested in causal inference, health data, cancer research"""
 # Maximum number of papers to process with LLM (set to 0 to disable LLM processing entirely)
 max_papers_for_llm = 100
+# Number of days to check for new papers (default is 7)
+days_to_check = 7
 
 [api]
 # Email address for CrossRef API requests (required for polite usage)

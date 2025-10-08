@@ -16,9 +16,12 @@ def fetch_nature_data(query, config):
     api_key = config.get('api', {}).get('springer_api_key', False)
     init(api_key=api_key)
     
+    # Get the number of days to check from config, with a default of 7
+    days_to_check = config.get("search", {}).get("days_to_check", 7)
+
     # Calculate dynamic date range
     today = datetime.now().date()
-    last_week = today - timedelta(days=7)
+    last_week = today - timedelta(days=days_to_check)
     
     # Format dates as strings
     date_from = last_week.strftime('%Y-%m-%d')
