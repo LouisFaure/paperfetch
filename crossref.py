@@ -12,9 +12,12 @@ def fetch_crossref_data(query, config):
     Returns:
         tuple: (papers_with_abstracts dict, today date, last_week date)
     """
+    # Get the number of days to check from config, with a default of 7
+    days_to_check = config.get("search", {}).get("days_to_check", 7)
+
     # Calculate dynamic date range
     today = datetime.now().date()
-    last_week = today - timedelta(days=7)
+    last_week = today - timedelta(days=days_to_check)
     
     # Build query string by joining terms with space
     query_string = ' '.join(query)
