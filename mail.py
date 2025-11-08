@@ -38,7 +38,9 @@ def send_results_email(results, query, today, last_week, config):
                 .title {{ font-size: 18px; font-weight: bold; color: #2c3e50; margin-bottom: 10px; word-break: break-word; }}
                 .title a {{ color: #2c3e50; text-decoration: none; border-bottom: 1px dotted #3498db; }}
                 .title a:hover {{ color: #3498db; text-decoration: none; border-bottom: 1px solid #3498db; }}
-                .interest {{ background-color: #3498db; color: white; padding: 3px 8px; border-radius: 3px; font-size: 12px; margin-bottom: 10px; display: inline-block; }}
+                .metadata {{ display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 10px; }}
+                .journal {{ background-color: #95a5a6; color: white; padding: 3px 8px; border-radius: 3px; font-size: 12px; display: inline-block; margin-right: 8px; }}
+                .interest {{ background-color: #3498db; color: white; padding: 3px 8px; border-radius: 3px; font-size: 12px; display: inline-block; }}
                 .bullet-points {{ margin-left: 20px; }}
                 .bullet-points li {{ margin-bottom: 5px; line-height: 1.4; }}
                 .summary {{ margin-top: 15px; }}
@@ -84,12 +86,21 @@ def send_results_email(results, query, today, last_week, config):
                 html_content += f'<div class="title">{title}</div>'
             
             if isinstance(data, dict):
+                # Create metadata div for journal and interest rating
+                html_content += '<div class="metadata">'
+                
+                # Display journal name if available
+                if data.get('journal'):
+                    html_content += f'<div class="journal">{data["journal"]}</div>'
+                
                 # Display interest rating
                 if isinstance(data.get('interest_rating'), int):
                     rating_color = "#e74c3c" if rating < 4 else "#f39c12" if rating < 7 else "#27ae60"
                     html_content += f'<div class="interest" style="background-color: {rating_color};">Interest Rating: {rating}/10</div>'
                 else:
                     html_content += f'<div class="interest" style="background-color: #95a5a6;">Interest Rating: {data.get("interest_rating", "N/A")}</div>'
+                
+                html_content += '</div>'
                 
                 # Display bullet points
                 if 'summary' in data and isinstance(data['summary'], list):

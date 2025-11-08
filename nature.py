@@ -18,6 +18,9 @@ def fetch_nature_data(query, config):
     
     # Get the number of days to check from config, with a default of 7
     days_to_check = config.get("search", {}).get("days_to_check", 7)
+    
+    # Get publication names filter from config (optional)
+    publication_names = config.get("search", {}).get("springer_publication_names", None)
 
     # Calculate dynamic date range
     today = datetime.now().date()
@@ -42,12 +45,29 @@ def fetch_nature_data(query, config):
     # Create dictionary to store titles, abstracts, and URLs
     papers_with_abstracts = {}
     
+    # Convert publication_names to set for efficient lookup (if provided)
+    if publication_names:
+        if isinstance(publication_names, str):
+            # If single string, convert to list
+            publication_names = [publication_names]
+        publication_names_set = set(name.lower() for name in publication_names)
+    else:
+        publication_names_set = None
+    
     # Loop through records and collect those with abstracts
     for record in meta:
         title = record.title if record.title else "No title"
         
         # Only include papers that have an abstract
         if hasattr(record, 'abstract') and record.abstract:
+            # Filter by publication name if specified
+            if publication_names_set is not None:
+                if not hasattr(record, 'publicationName') or record.publicationName is None:
+                    continue
+                # Case-insensitive comparison
+                if record.publicationName.lower() not in publication_names_set:
+                    continue
+            
             abstract = record.abstract
             
             # Get URL from DOI (preferred)
@@ -57,10 +77,16 @@ def fetch_nature_data(query, config):
             elif hasattr(record, 'url') and record.url:
                 url = record.url
             
-            # Store title, abstract, and URL
+            # Get journal name from publicationName
+            journal = None
+            if hasattr(record, 'publicationName') and record.publicationName:
+                journal = record.publicationName
+            
+            # Store title, abstract, URL, and journal
             papers_with_abstracts[title] = {
                 "abstract": abstract,
-                "url": url
+                "url": url,
+                "journal": journal
             }
     
     return papers_with_abstracts, today, last_week

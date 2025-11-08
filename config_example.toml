@@ -19,6 +19,13 @@ max_papers_for_llm = 100
 # Number of days to check for new papers (default is 7)
 days_to_check = 7
 
+# Optional: restrict Nature/Springer search to specific publication names
+# Can be a single publication name or a list of publication names
+# If not specified, all publications will be included
+# Examples: "Nature", "Science", ["Nature", "Cell"]
+# springer_publication_names = "Nature"
+# springer_publication_names = ["Nature", "Science", "Cell"]
+
 [api]
 # Email address for CrossRef API requests (required for polite usage)
 mailto = "yourmailaddress@mail.com"

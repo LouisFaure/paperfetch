@@ -52,10 +52,16 @@ def fetch_crossref_data(query, config):
             elif "URL" in item:
                 url = item["URL"]
             
-            # Store title, abstract, and URL
+            # Get journal name from container-title
+            journal = None
+            if "container-title" in item and item["container-title"]:
+                journal = item["container-title"][0]
+            
+            # Store title, abstract, URL, and journal
             papers_with_abstracts[title] = {
                 "abstract": abstract,
-                "url": url
+                "url": url,
+                "journal": journal
             }
     
     return papers_with_abstracts, today, last_week

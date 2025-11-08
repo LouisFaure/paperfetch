@@ -50,6 +50,7 @@ async def process_papers_with_llm(papers_with_abstracts, query, client, config):
         """Process a single paper with LLM summarization and interest rating."""
         abstract = paper_data["abstract"]
         url = paper_data["url"]
+        journal = paper_data.get("journal")  # Preserve journal if present
         
         # Summarization with retry logic
         max_attempts = config['api'].get('max_attempts', 3)
@@ -129,7 +130,8 @@ async def process_papers_with_llm(papers_with_abstracts, query, client, config):
         result = {
             'summary': summary_result,
             'interest_rating': interest_rating,
-            'url': url
+            'url': url,
+            'journal': journal
         }
         
         if isinstance(interest_rating, int):
