@@ -12,11 +12,14 @@ from datetime import datetime
 
 def send_paper_to_slack(paper_title: str, paper_data: dict, config: dict) -> bool:
     """
-    Post a single paper notification to Slack.
+    Post a single paper notification to Slack using Block Kit for compact display.
+    
+    Only shows title (linked), journal, and rating. Key points and abstract
+    are saved separately to a file.
     
     Args:
         paper_title: Title of the paper
-        paper_data: Dictionary containing paper details (url, journal, interest_rating, summary)
+        paper_data: Dictionary containing paper details (url, journal, interest_rating)
         config: Configuration dictionary containing Slack settings
         
     Returns:
@@ -24,21 +27,14 @@ def send_paper_to_slack(paper_title: str, paper_data: dict, config: dict) -> boo
     """
     webhook_url = config['slack']['webhook_url']
     
-    # Build the message
+    # Extract data
     url = paper_data.get('url', '')
     journal = paper_data.get('journal', 'Unknown Journal')
     rating = paper_data.get('interest_rating', 'N/A')
-    summary = paper_data.get('summary', [])
-    abstract = paper_data.get('abstract', '')
     
     # Rating emoji based on score
     if isinstance(rating, int):
-        if rating >= 9:
-            rating_emoji = "🔥"
-        elif rating >= 7:
-            rating_emoji = "⭐"
-        else:
-            rating_emoji = "📊"
+        rating_emoji = "🔥" if rating >= 9 else "⭐" if rating >= 7 else "📊"
     else:
         rating_emoji = "❓"
     
@@ -48,33 +44,27 @@ def send_paper_to_slack(paper_title: str, paper_data: dict, config: dict) -> boo
     else:
         title_text = paper_title
     
-    # Build key points if available
-    key_points = ""
-    if summary and isinstance(summary, list):
-        key_points = "\n".join(f"• {point}" for point in summary)
-    
-    # Build the message text
-    message_lines = [
-        f"📄 *{title_text}*",
-        f"🏷️ {journal} | {rating_emoji} Interest: {rating}/10",
+    # Build compact blocks - only title and metadata, no content
+    blocks = [
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"📄 *{title_text}*"
+            }
+        },
+        {
+            "type": "context",
+            "elements": [
+                {"type": "mrkdwn", "text": f"🏷️ {journal}"},
+                {"type": "mrkdwn", "text": f"{rating_emoji} *{rating}/10*"}
+            ]
+        }
     ]
     
-    if key_points:
-        message_lines.append("")
-        message_lines.append("*Key Points:*")
-        message_lines.append(key_points)
-    
-    # Add abstract in code block for collapsibility
-    if abstract:
-        message_lines.append("")
-        message_lines.append("*Abstract:*")
-        message_lines.append(f"```{abstract}```")
-    
-    message_text = "\n".join(message_lines)
-    
-    # Post to Slack
+    # Post to Slack with blocks
     payload = {
-        "text": message_text,
+        "blocks": blocks,
         "unfurl_links": False,
         "unfurl_media": False
     }
@@ -88,11 +78,67 @@ def send_paper_to_slack(paper_title: str, paper_data: dict, config: dict) -> boo
         return False
 
 
+def save_results_to_file(high_rated_papers: list, query, today, last_week) -> str:
+    """
+    Save detailed paper results to a markdown file.
+    
+    Args:
+        high_rated_papers: List of (title, data, rating) tuples
+        query: Search query used
+        today: Today's date
+        last_week: Last week's date
+        
+    Returns:
+        str: Path to the saved file
+    """
+    query_str = ' '.join(query) if isinstance(query, list) else query
+    filename = f"papers_{today}.md"
+    
+    with open(filename, 'w', encoding='utf-8') as f:
+        f.write(f"# PaperFetch Results\n\n")
+        f.write(f"**Query:** {query_str}\n\n")
+        f.write(f"**Date range:** {last_week} to {today}\n\n")
+        f.write(f"**Papers:** {len(high_rated_papers)}\n\n")
+        f.write("---\n\n")
+        
+        for title, data, rating in high_rated_papers:
+            url = data.get('url', '')
+            journal = data.get('journal', 'Unknown')
+            summary = data.get('summary', [])
+            abstract = data.get('abstract', '')
+            
+            # Title with link
+            if url:
+                f.write(f"## [{title}]({url})\n\n")
+            else:
+                f.write(f"## {title}\n\n")
+            
+            f.write(f"**Journal:** {journal} | **Rating:** {rating}/10\n\n")
+            
+            # Key points
+            if summary and isinstance(summary, list):
+                f.write("### Key Points\n\n")
+                for point in summary:
+                    f.write(f"- {point}\n")
+                f.write("\n")
+            
+            # Abstract
+            if abstract:
+                f.write("### Abstract\n\n")
+                f.write(f"{abstract}\n\n")
+            
+            f.write("---\n\n")
+    
+    print(f"Detailed results saved to: {filename}")
+    return filename
+
+
 def send_results_to_slack(results: dict, query, today, last_week, config: dict) -> int:
     """
     Send paper results to Slack, filtering by minimum rating.
     
-    Posts one message per paper with rating >= min_rating from config.
+    Posts one compact message per paper (title + metadata only).
+    Detailed content is saved to a markdown file.
     
     Args:
         results: Dictionary of paper titles to paper data
@@ -119,7 +165,6 @@ def send_results_to_slack(results: dict, query, today, last_week, config: dict) 
     if not high_rated_papers:
         query_str = ' '.join(query) if isinstance(query, list) else query
         print(f"No papers with rating >= {min_rating} to post to Slack")
-        # Post a summary message
         _post_summary_message(
             config,
             f"📚 *PaperFetch Results*\n"
@@ -129,6 +174,9 @@ def send_results_to_slack(results: dict, query, today, last_week, config: dict) 
             f"Papers meeting threshold (≥{min_rating}): 0"
         )
         return 0
+    
+    # Save detailed results to file
+    save_results_to_file(high_rated_papers, query, today, last_week)
     
     # Post header message
     query_str = ' '.join(query) if isinstance(query, list) else query
@@ -141,7 +189,7 @@ def send_results_to_slack(results: dict, query, today, last_week, config: dict) 
     )
     _post_summary_message(config, header)
     
-    # Post each paper
+    # Post each paper (compact - title and metadata only)
     success_count = 0
     for title, data, rating in high_rated_papers:
         if send_paper_to_slack(title, data, config):
