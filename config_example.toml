@@ -40,11 +40,9 @@ ssl_verify = true
 enable_springer = false
 springer_api_key = "your_springer_api_key_here"
 
-[email]
-# Email configuration for sending results
-smtp_server = "smtp.gmail.com"
-smtp_port = 587
-sender_email = "yourmailaddress@mail.com"
-sender_password = "your_app_password"
-recipient_email = "recipient@mail.com"
-subject_prefix = "PaperFetch Results"
+[slack]
+# Slack webhook URL for posting paper notifications
+# Create an incoming webhook at: https://api.slack.com/messaging/webhooks
+webhook_url = "https://hooks.slack.com/services/XXX/YYY/ZZZ"
+# Minimum interest rating to post (papers with rating >= this will be posted)
+min_rating = 7

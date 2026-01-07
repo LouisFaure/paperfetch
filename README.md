@@ -1,12 +1,12 @@
 # paperpetch
 
-PaperFetch is an automated research paper discovery and analysis tool that searches for recent academic papers, processes them with AI for intelligent summarization and relevance scoring, and delivers the results via email.
+PaperFetch is an automated research paper discovery and analysis tool that searches for recent academic papers, processes them with AI for intelligent summarization and relevance scoring, and delivers the results via Slack.
 
 ## Features
 
 - 🔍 **Multi-Source Paper Discovery**: Searches CrossRef API and optionally Nature/Springer databases for papers published in the last week
 - 🤖 **AI-Powered Analysis**: Uses LLM to summarize papers and rate their relevance to your research interests
-- 📧 **Email Delivery**: Sends beautifully formatted HTML email reports with paper summaries and ratings
+- 💬 **Slack Notifications**: Posts high-relevance papers (rating ≥7) to a Slack channel, one message per paper for easy reactions
 - ⚡ **Concurrent Processing**: Efficiently processes multiple papers simultaneously
 - 🛡️ **Smart Rate Limiting**: Configurable limits to prevent excessive API usage
 - 🔄 **Retry Logic**: Robust error handling with automatic retries for API calls
@@ -17,7 +17,7 @@ PaperFetch is an automated research paper discovery and analysis tool that searc
 - Python 3.13 or higher
 - [UV package manager](https://docs.astral.sh/uv/) (recommended) or pip
 - Access to an OpenAI-compatible API (OpenAI, local LLM server, etc.)
-- Email account with SMTP access (Gmail, etc.)
+- Slack workspace with an incoming webhook URL
 - (Optional) Springer API key for Nature/Springer database access
 
 ## Installation
@@ -90,23 +90,21 @@ ssl_verify = true
 enable_springer = false
 springer_api_key = "your_springer_api_key_here"
 
-[email]
-# Email configuration for sending results
-smtp_server = "smtp.gmail.com"
-smtp_port = 587
-sender_email = "your.email@gmail.com"
-# For Gmail, use an App Password instead of your regular password
-sender_password = "your_app_password_here"
-recipient_email = "recipient@example.com"
-subject_prefix = "PaperFetch Results"
+[slack]
+# Slack webhook URL for posting paper notifications
+# Create an incoming webhook at: https://api.slack.com/messaging/webhooks
+webhook_url = "https://hooks.slack.com/services/XXX/YYY/ZZZ"
+# Minimum interest rating to post (papers with rating >= this will be posted)
+min_rating = 7
 ```
 
-### Gmail Setup
+### Slack Webhook Setup
 
-For Gmail users:
-1. Enable 2-factor authentication
-2. Generate an App Password: Google Account → Security → 2-Step Verification → App passwords
-3. Use the App Password in the `sender_password` field
+To set up Slack notifications:
+1. Go to [Slack API Apps](https://api.slack.com/apps) and create a new app (or use an existing one)
+2. Enable "Incoming Webhooks" in your app settings
+3. Create a new webhook and select the channel for paper notifications
+4. Copy the webhook URL to your `config.toml` under `[slack]` section
 
 ### Nature/Springer API Setup (Optional)
 
@@ -176,16 +174,18 @@ If more papers are found than your `max_papers_for_llm` setting, the tool will:
 
 ## Output
 
-### Successful Processing Email
-- Papers sorted by AI-generated relevance scores
-- Color-coded ratings (red: 0-3, orange: 4-6, green: 7-10)
-- Bullet-point summaries of key findings
-- Direct links to papers via DOI
+### Slack Notifications (Rating ≥7)
+- One message per high-relevance paper
+- Clickable title linking to the paper
+- Interest rating with emoji
+- Key points summary
+- Collapsible abstract in code block
+- React with 👀 to show interest
 
-### Rate-Limited Email
-- List of paper titles with links
+### Rate-Limited Notification
+- Summary message with paper count
+- List of paper titles (first 20) with links
 - Explanation of why AI processing was skipped
-- Suggestions for configuration adjustments
 
 ## File Structure
 
@@ -195,7 +195,7 @@ PaperFetch/
 ├── crossref.py          # CrossRef API interaction
 ├── nature.py            # Nature/Springer API interaction
 ├── llm.py              # AI processing and summarization
-├── mail.py             # Email formatting and sending
+├── slack.py            # Slack webhook notifications
 ├── config_example.toml  # Configuration template
 ├── config.toml         # Your configuration (not in git)
 ├── pyproject.toml      # Project dependencies

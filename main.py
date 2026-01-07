@@ -4,7 +4,7 @@ import os
 import sys
 import asyncio
 import pickle
-from mail import send_results_email, send_no_llm_processing_email
+from slack import send_results_to_slack, send_no_llm_processing_slack
 from crossref import fetch_crossref_data
 from nature import fetch_nature_data
 from llm import create_llm_client, process_papers_with_llm
@@ -69,7 +69,7 @@ async def main():
     if paper_count > max_papers_for_llm:
         print(f"Skipping LLM processing: {paper_count} papers exceeds limit of {max_papers_for_llm}")
         # Send email with explanation about skipped LLM processing
-        send_no_llm_processing_email(papers_with_abstracts, query, today, last_week, config, paper_count, max_papers_for_llm)
+        send_no_llm_processing_slack(papers_with_abstracts, query, today, last_week, config, paper_count, max_papers_for_llm)
         return
     
     # Create LLM client
@@ -79,8 +79,8 @@ async def main():
     with open("results.pkl", "wb") as f:
         pickle.dump(res, f)
 
-    # Send results via email
-    send_results_email(res, query, today, last_week, config)
+    # Send results to Slack
+    send_results_to_slack(res, query, today, last_week, config)
 
 
 # Run the async main function
