@@ -30,8 +30,8 @@ def fetch_nature_data(query, config):
     date_from = last_week.strftime('%Y-%m-%d')
     date_to = today.strftime('%Y-%m-%d')
     
-    # Build query string by joining terms with " AND "
-    query_string = ' AND '.join([f'"{term}"' for term in query])
+    # Build query string by joining terms with " OR "
+    query_string = ' OR '.join([f'"{term}"' for term in query])
     print(f"Nature/Springer query string: {query_string}")
     
     # Create Meta search object

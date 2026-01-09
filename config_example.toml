@@ -41,8 +41,12 @@ enable_springer = false
 springer_api_key = "your_springer_api_key_here"
 
 [slack]
-# Slack webhook URL for posting paper notifications
-# Create an incoming webhook at: https://api.slack.com/messaging/webhooks
-webhook_url = "https://hooks.slack.com/services/XXX/YYY/ZZZ"
+# Bot User OAuth Token (starts with xoxb-)
+# Get this from your Slack App settings > OAuth & Permissions
+bot_token = "xoxb-your-bot-token"
+
+# Channel ID to post messages to (e.g. C012345678)
+# You can find this in the channel details in Slack
+channel_id = "C012345678"
 # Minimum interest rating to post (papers with rating >= this will be posted)
 min_rating = 7

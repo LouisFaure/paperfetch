@@ -1,21 +1,46 @@
 """
 Slack notification module for PaperFetch.
 
-Sends paper notifications via Slack webhooks. Each high-relevance paper
+Sends paper notifications via Slack Web API. Each high-relevance paper
 (rating >= min_rating) is posted as a separate message to enable individual
 emoji reactions for interest signaling.
 """
 
-import httpx
 from datetime import datetime
+from slack_sdk import WebClient
+from slack_sdk.errors import SlackApiError
 
 
-def send_paper_to_slack(paper_title: str, paper_data: dict, config: dict) -> bool:
+def get_slack_client(config: dict) -> tuple[WebClient, str]:
     """
-    Post a single paper notification to Slack using Block Kit for compact display.
+    Initialize Slack client and get channel ID from config.
     
-    Only shows title (linked), journal, and rating. Key points and abstract
-    are saved separately to a file.
+    Args:
+        config: Configuration dictionary
+        
+    Returns:
+        tuple: (WebClient instance, channel_id string)
+    """
+    token = config['slack'].get('bot_token')
+    channel_id = config['slack'].get('channel_id')
+    
+    if not token or not channel_id:
+        print("Error: Missing 'bot_token' or 'channel_id' in [slack] config.")
+        return None, None
+        
+    import ssl
+    ssl_context = ssl.create_default_context()
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+    
+    return WebClient(token=token, ssl=ssl_context), channel_id
+
+
+def send_paper_to_slack(paper_title: str, paper_data: dict, config: dict, preview: bool = False) -> bool:
+    """
+    Post a single paper notification to Slack.
+    
+    Only shows title (linked), journal, and rating.
     
     Args:
         paper_title: Title of the paper
@@ -25,7 +50,12 @@ def send_paper_to_slack(paper_title: str, paper_data: dict, config: dict) -> boo
     Returns:
         bool: True if message posted successfully, False otherwise
     """
-    webhook_url = config['slack']['webhook_url']
+    client = None
+    if not preview:
+        client, channel_id = get_slack_client(config)
+        if not client:
+            return False
+
     
     # Extract data
     url = paper_data.get('url', '')
@@ -44,37 +74,23 @@ def send_paper_to_slack(paper_title: str, paper_data: dict, config: dict) -> boo
     else:
         title_text = paper_title
     
-    # Build compact blocks - only title and metadata, no content
-    blocks = [
-        {
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": f"📄 *{title_text}*"
-            }
-        },
-        {
-            "type": "context",
-            "elements": [
-                {"type": "mrkdwn", "text": f"🏷️ {journal}"},
-                {"type": "mrkdwn", "text": f"{rating_emoji} *{rating}/10*"}
-            ]
-        }
-    ]
+    # Build plain text message
+    message = f"📄 *{title_text}*\n🏷️ {journal}  |  {rating_emoji} *{rating}/10*"
     
-    # Post to Slack with blocks
-    payload = {
-        "blocks": blocks,
-        "unfurl_links": False,
-        "unfurl_media": False
-    }
+    if preview:
+        print(message)
+        return True
     
     try:
-        response = httpx.post(webhook_url, json=payload, timeout=30)
-        response.raise_for_status()
-        return True
-    except Exception as e:
-        print(f"Failed to post paper to Slack: {e}")
+        response = client.chat_postMessage(
+            channel=channel_id,
+            text=message,
+            unfurl_links=False,
+            unfurl_media=False
+        )
+        return response["ok"]
+    except SlackApiError as e:
+        print(f"Failed to post paper to Slack: {e.response['error']}")
         return False
 
 
@@ -133,12 +149,9 @@ def save_results_to_file(high_rated_papers: list, query, today, last_week) -> st
     return filename
 
 
-def send_results_to_slack(results: dict, query, today, last_week, config: dict) -> int:
+def send_results_to_slack(results: dict, query, today, last_week, config: dict, preview: bool = False) -> int:
     """
     Send paper results to Slack, filtering by minimum rating.
-    
-    Posts one compact message per paper (title + metadata only).
-    Detailed content is saved to a markdown file.
     
     Args:
         results: Dictionary of paper titles to paper data
@@ -171,7 +184,8 @@ def send_results_to_slack(results: dict, query, today, last_week, config: dict) 
             f"Query: {query_str}\n"
             f"Date range: {last_week} to {today}\n"
             f"Papers found: {len(results)}\n"
-            f"Papers meeting threshold (≥{min_rating}): 0"
+            f"Papers meeting threshold (≥{min_rating}): 0",
+            preview=preview
         )
         return 0
     
@@ -187,12 +201,12 @@ def send_results_to_slack(results: dict, query, today, last_week, config: dict) 
         f"Papers with rating ≥{min_rating}: {len(high_rated_papers)} of {len(results)} total\n"
         f"React with 👀 to show interest!"
     )
-    _post_summary_message(config, header)
+    _post_summary_message(config, header, preview=preview)
     
     # Post each paper (compact - title and metadata only)
     success_count = 0
     for title, data, rating in high_rated_papers:
-        if send_paper_to_slack(title, data, config):
+        if send_paper_to_slack(title, data, config, preview=preview):
             success_count += 1
             print(f"Posted to Slack (rating {rating}): {title[:50]}...")
         else:
@@ -212,7 +226,8 @@ def send_no_llm_processing_slack(
     last_week, 
     config: dict, 
     paper_count: int, 
-    max_papers_for_llm: int
+    max_papers_for_llm: int,
+    preview: bool = False
 ) -> bool:
     """
     Send a Slack message explaining that LLM processing was skipped.
@@ -254,10 +269,10 @@ def send_no_llm_processing_slack(
     
     message += "\n".join(paper_lines)
     
-    return _post_summary_message(config, message)
+    return _post_summary_message(config, message, preview=preview)
 
 
-def _post_summary_message(config: dict, message: str) -> bool:
+def _post_summary_message(config: dict, message: str, preview: bool = False) -> bool:
     """
     Post a summary/header message to Slack.
     
@@ -268,18 +283,24 @@ def _post_summary_message(config: dict, message: str) -> bool:
     Returns:
         bool: True if posted successfully
     """
-    webhook_url = config['slack']['webhook_url']
-    
-    payload = {
-        "text": message,
-        "unfurl_links": False,
-        "unfurl_media": False
-    }
+    if preview:
+        print("--- [PREVIEW] Summary Message ---")
+        print(message)
+        print("-------------------------------")
+        return True
+
+    client, channel_id = get_slack_client(config)
+    if not client:
+        return False
     
     try:
-        response = httpx.post(webhook_url, json=payload, timeout=30)
-        response.raise_for_status()
+        client.chat_postMessage(
+            channel=channel_id,
+            text=message,
+            unfurl_links=False,
+            unfurl_media=False
+        )
         return True
-    except Exception as e:
-        print(f"Failed to post summary to Slack: {e}")
+    except SlackApiError as e:
+        print(f"Failed to post summary to Slack: {e.response['error']}")
         return False

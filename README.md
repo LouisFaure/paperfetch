@@ -91,20 +91,28 @@ enable_springer = false
 springer_api_key = "your_springer_api_key_here"
 
 [slack]
-# Slack webhook URL for posting paper notifications
-# Create an incoming webhook at: https://api.slack.com/messaging/webhooks
-webhook_url = "https://hooks.slack.com/services/XXX/YYY/ZZZ"
+# Bot User OAuth Token (starts with xoxb-)
+# Get this from your Slack App settings > OAuth & Permissions
+bot_token = "xoxb-your-bot-token"
+# Channel ID to post messages to (e.g. C012345678)
+# You can find this in the channel details in Slack
+channel_id = "C012345678"
 # Minimum interest rating to post (papers with rating >= this will be posted)
 min_rating = 7
 ```
 
-### Slack Webhook Setup
+### Slack Bot Setup
 
 To set up Slack notifications:
-1. Go to [Slack API Apps](https://api.slack.com/apps) and create a new app (or use an existing one)
-2. Enable "Incoming Webhooks" in your app settings
-3. Create a new webhook and select the channel for paper notifications
-4. Copy the webhook URL to your `config.toml` under `[slack]` section
+1. Go to [Slack API Apps](https://api.slack.com/apps) and create a new app
+2. go to **OAuth & Permissions** in the sidebar
+3. Add the following **Bot Token Scopes**:
+   - `chat:write` (to post messages)
+   - `chat:write.public` (to post to any public channel without joining)
+   - `links:read` (optional, for link unfurling)
+4. Install the App to your Workspace
+5. Copy the **Bot User OAuth Token** (starts with `xoxb-`) to `config.toml`
+6. Get the **Channel ID** (right-click channel > Copy Link, the ID is the last part e.g., `C012345678`) and add it to `config.toml`
 
 ### Nature/Springer API Setup (Optional)
 
@@ -131,23 +139,27 @@ Or with UV script syntax:
 uv run --script main.py
 ```
 
-### Custom Query
 
-Override the config query with command-line arguments:
+### Testing & Dry Run
 
-**Single search term:**
+Preview what would be sent to Slack without actually sending any messages. This is useful for testing queries or settings.
+
+**Run a dry run:**
 ```bash
-uv run main.py "quantum computing"
+uv run test_slack_message.py
 ```
 
-**Multiple search terms:**
+**Use cached results:**
+If you've already run a search (either via `main.py` or the test script), results are saved to `results.pkl`. You can re-run the rating/filtering step on these cached papers without re-fetching from APIs or using LLM credits:
 ```bash
-uv run main.py "single-cell" "tissue ecosystem"
+uv run test_slack_message.py --cached
 ```
 
-When using multiple command-line arguments, each term is treated separately and joined appropriately for each API:
-- **CrossRef**: Terms joined with spaces (e.g., `single-cell tissue ecosystem`)
-- **Nature/Springer**: Terms joined with AND logic (e.g., `"single-cell" AND "tissue ecosystem"`)
+**Run a connection test:**
+Verify your Slack credentials by posting a temporary test message (auto-deleted after 1 minute):
+```bash
+uv run test_slack_post_delete.py
+```
 
 ### What Happens
 
