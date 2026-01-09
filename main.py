@@ -5,7 +5,7 @@ import sys
 import asyncio
 import pickle
 from datetime import datetime, timedelta
-from slack import send_results_to_slack, send_no_llm_processing_slack
+from slack import send_results_to_slack, send_no_llm_processing_slack, delete_bot_messages
 from crossref import fetch_crossref_data
 from nature import fetch_nature_data
 from llm import create_llm_client, process_papers_with_llm
@@ -35,6 +35,34 @@ async def main():
         cache_mode = True
         sys.argv.remove("--cache")
         print("Cache mode enabled: Using pickled results if available.")
+
+    # Check for cleanup flag
+    cleanup_minutes = None
+    if "--cleanup" in sys.argv:
+        try:
+            idx = sys.argv.index("--cleanup")
+            if idx + 1 < len(sys.argv):
+                val = sys.argv[idx + 1]
+                # Check if the next argument is a number
+                if val.isdigit():
+                    cleanup_minutes = int(val)
+                    # Remove both arguments
+                    sys.argv.pop(idx + 1)
+                    sys.argv.pop(idx)
+                else:
+                    print("Error: --cleanup requires a numeric argument (minutes)")
+                    return
+            else:
+                 print("Error: --cleanup requires a number of minutes")
+                 return
+        except ValueError:
+            print("Error parsing --cleanup argument")
+            return
+
+    if cleanup_minutes is not None:
+        print(f"Cleaning up bot messages from the last {cleanup_minutes} minutes...")
+        delete_bot_messages(config, cleanup_minutes)
+        return
 
     # Calculate dates (needed for slack message)
     days_to_check = config.get("search", {}).get("days_to_check", 7)

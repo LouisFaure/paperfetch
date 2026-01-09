@@ -9,6 +9,12 @@ emoji reactions for interest signaling.
 from datetime import datetime
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
+import json
+import os
+import time
+
+HISTORY_FILE = ".slack_history.json"
+
 
 
 def get_slack_client(config: dict) -> tuple[WebClient, str]:
@@ -34,6 +40,32 @@ def get_slack_client(config: dict) -> tuple[WebClient, str]:
     ssl_context.verify_mode = ssl.CERT_NONE
     
     return WebClient(token=token, ssl=ssl_context), channel_id
+
+
+def _save_message_id(channel_id: str, ts: str):
+    """Save message ID to local history file."""
+    try:
+        data = []
+        if os.path.exists(HISTORY_FILE):
+            with open(HISTORY_FILE, 'r') as f:
+                try:
+                    data = json.load(f)
+                except json.JSONDecodeError:
+                    pass
+        
+        # Append new message
+        data.append({
+            'ts': ts,
+            'channel': channel_id,
+            'time': time.time()
+        })
+        
+        with open(HISTORY_FILE, 'w') as f:
+            json.dump(data, f)
+            
+    except Exception as e:
+        print(f"Warning: Failed to save message ID to history: {e}")
+
 
 
 def send_paper_to_slack(paper_title: str, paper_data: dict, config: dict, preview: bool = False) -> bool:
@@ -77,6 +109,12 @@ def send_paper_to_slack(paper_title: str, paper_data: dict, config: dict, previe
     # Build plain text message
     message = f"📄 *{title_text}*\n🏷️ {journal}  |  {rating_emoji} *{rating}/10*"
     
+    # Add key bullet points if available
+    summary = paper_data.get('summary', [])
+    if summary and isinstance(summary, list):
+        for point in summary:
+            message += f"\n• {point}"
+    
     if preview:
         print(message)
         return True
@@ -88,7 +126,10 @@ def send_paper_to_slack(paper_title: str, paper_data: dict, config: dict, previe
             unfurl_links=False,
             unfurl_media=False
         )
-        return response["ok"]
+        if response["ok"]:
+            _save_message_id(channel_id, response["ts"])
+            return True
+        return False
     except SlackApiError as e:
         print(f"Failed to post paper to Slack: {e.response['error']}")
         return False
@@ -294,13 +335,136 @@ def _post_summary_message(config: dict, message: str, preview: bool = False) -> 
         return False
     
     try:
-        client.chat_postMessage(
+        response = client.chat_postMessage(
             channel=channel_id,
             text=message,
             unfurl_links=False,
             unfurl_media=False
         )
-        return True
+        if response["ok"]:
+             _save_message_id(channel_id, response["ts"])
+             return True
+        return False
     except SlackApiError as e:
         print(f"Failed to post summary to Slack: {e.response['error']}")
         return False
+
+
+def delete_bot_messages(config: dict, minutes: int) -> int:
+    """
+    Delete messages sent by the bot in the last n minutes.
+    
+    Args:
+        config: Configuration dictionary
+        minutes: Number of minutes to look back
+        
+    Returns:
+        int: Number of messages deleted
+    """
+    from datetime import datetime, timedelta
+    
+    client, channel_id = get_slack_client(config)
+    if not client:
+        return 0
+
+    print("Authenticating to get bot identity...")
+    try:
+        auth = client.auth_test()
+        bot_user_id = auth["user_id"]
+        bot_id = auth.get("bot_id")
+    except SlackApiError as e:
+        print(f"Error getting bot identity: {e}")
+        return 0
+
+    oldest_ts = (datetime.now() - timedelta(minutes=minutes)).timestamp()
+    print(f"Looking for messages in channel {channel_id} from the last {minutes} minutes...")
+
+    deleted_count = 0
+    try:
+        cursor = None
+        while True:
+            response = client.conversations_history(
+                channel=channel_id,
+                oldest=str(oldest_ts),
+                limit=100,
+                cursor=cursor
+            )
+            
+            messages = response.get('messages', [])
+            
+            for msg in messages:
+                # Check if message is from this bot
+                is_mine = False
+                if msg.get('user') == bot_user_id:
+                    is_mine = True
+                elif 'bot_id' in msg and msg.get('bot_id') == bot_id:
+                     is_mine = True
+                
+                if is_mine:
+                    try:
+                        client.chat_delete(channel=channel_id, ts=msg['ts'])
+                        deleted_count += 1
+                        print(f"Deleted message: {msg.get('text', '')[:50]}...")
+                    except SlackApiError as e:
+                        print(f"Failed to delete message {msg['ts']}: {e}")
+            
+            if not response.get('has_more'):
+                break
+            cursor = response.get('response_metadata', {}).get('next_cursor')
+
+    except SlackApiError as e:
+        if e.response['error'] == 'missing_scope':
+            print("Missing 'channels:history' scope. Falling back to local history tracking...")
+            return _delete_from_local_history(client, channel_id, minutes)
+        else:
+            print(f"Error listing history: {e}")
+
+    return deleted_count
+
+def _delete_from_local_history(client: WebClient, channel_id: str, minutes: int) -> int:
+    """Delete messages using local history file when API history is unavailable."""
+    if not os.path.exists(HISTORY_FILE):
+        print("No local history file found.")
+        return 0
+
+    print("Checking local history for messages to delete...")
+    try:
+        with open(HISTORY_FILE, 'r') as f:
+            history = json.load(f)
+    except json.JSONDecodeError:
+        print("Error reading local history file.")
+        return 0
+
+    cutoff_time = time.time() - (minutes * 60)
+    
+    # Identify messages to delete
+    to_delete = []
+    kept_history = []
+    
+    for entry in history:
+        # Check if entry belongs to this channel and is within time window
+        if entry.get('channel') == channel_id and entry.get('time', 0) > cutoff_time:
+            to_delete.append(entry)
+        else:
+            kept_history.append(entry)
+            
+    print(f"Found {len(to_delete)} messages in local history to delete.")
+    
+    deleted_count = 0
+    for entry in to_delete:
+        try:
+            client.chat_delete(channel=channel_id, ts=entry['ts'])
+            deleted_count += 1
+            print(f"Deleted message ts={entry['ts']}")
+        except SlackApiError as e:
+            print(f"Failed to delete message {entry['ts']}: {e.response['error']}")
+            # If failed (e.g. already deleted), we still remove from history
+            
+    # Save back the history without the deleted items
+    with open(HISTORY_FILE, 'w') as f:
+        json.dump(kept_history, f)
+        
+    print(f"Local history cleanup finished. Deleted {deleted_count} messages.")
+    return deleted_count
+
+

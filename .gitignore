@@ -14,3 +14,5 @@ uv.lock
 # other files
 config.toml
 *.pkl
+*.json
+papers_*.md
