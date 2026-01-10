@@ -3,11 +3,17 @@ name = "paperfetch"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = "==3.12.*"
 dependencies = [
     "openai>=1.108.1",
     "requests>=2.32.5",
     "slack-sdk>=3.39.0",
     "sprynger>=0.4.1",
     "toml>=0.10.2",
+]
+
+[project.optional-dependencies]
+local = [
+    "transformers[torch]>=4.57.3",
+    "torch==2.4.0",
 ]

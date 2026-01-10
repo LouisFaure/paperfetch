@@ -2,6 +2,16 @@
 import tomllib
 import os
 import sys
+
+# Load configuration from TOML file
+with open("config.toml", "rb") as f:
+    config = tomllib.load(f)
+
+# Set HF_HOME before importing transformers or any other library that uses it
+hf_home = config["local"].get("hf_home", None)
+if hf_home is not None:
+    os.environ['HF_HOME'] = hf_home
+
 import asyncio
 import pickle
 from datetime import datetime, timedelta
@@ -9,6 +19,7 @@ from slack import send_results_to_slack, send_no_llm_processing_slack, delete_bo
 from crossref import fetch_crossref_data
 from nature import fetch_nature_data
 from llm import create_llm_client, process_papers_with_llm
+import llm
 
 # Check if config.toml exists
 if not os.path.exists("config.toml"):
@@ -16,9 +27,7 @@ if not os.path.exists("config.toml"):
     print("Please create a config.toml file following the structure in config_example.toml")
     sys.exit(1)
 
-# Load configuration from TOML file
-with open("config.toml", "rb") as f:
-    config = tomllib.load(f)
+
 
 async def main():
     """Main async function to orchestrate the paper processing."""
@@ -140,9 +149,24 @@ async def main():
             )
             return
         
-        # Create LLM client
-        client = create_llm_client(config)
-        res = await process_papers_with_llm(papers_with_abstracts, query, client, config)
+        # Check for local mode flag
+        local_mode = False
+        if "--local" in sys.argv:
+            local_mode = True
+            sys.argv.remove("--local")
+            print("Local mode enabled: Using local LLM.")
+
+
+        # Create LLM client or load local model
+        client = None
+        local_pipe = None
+        
+        if local_mode:
+            local_pipe = llm.load_local_model(config)
+        else:
+            client = create_llm_client(config)
+            
+        res = await process_papers_with_llm(papers_with_abstracts, query, client, config, local_pipe=local_pipe)
         
         # Save results to pickle file for potential debugging / caching
         print("Saving results to results.pkl")
