@@ -11,8 +11,12 @@ wheels/
 uv.lock
 .python-version
 
+# Environment files with secrets
+.env
+
 # other files
 config.toml
 *.pkl
 *.json
 papers_*.md
+test_*

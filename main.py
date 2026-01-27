@@ -1,31 +1,80 @@
 #!/usr/bin/env -S uv run --script
-import tomllib
+import yaml
 import os
 import sys
+import re
 
-# Load configuration from TOML file
-with open("config.toml", "rb") as f:
-    config = tomllib.load(f)
+# Load .env file if it exists
+def load_dotenv(path=".env"):
+    if os.path.exists(path):
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    os.environ.setdefault(key.strip(), value.strip())
+
+load_dotenv()
+
+# Check if config.yaml exists
+if not os.path.exists("config.yaml"):
+    print("Error: config.yaml not found!")
+    sys.exit(1)
+
+def resolve_env_vars(obj):
+    """Recursively resolve ${ENV_VAR} placeholders in config values."""
+    if isinstance(obj, str):
+        pattern = r'\$\{([^}]+)\}'
+        match = re.match(pattern, obj)
+        if match:
+            env_var = match.group(1)
+            value = os.environ.get(env_var)
+            if value is None:
+                print(f"Warning: Environment variable {env_var} is not set")
+                return obj
+            return value
+        return obj
+    elif isinstance(obj, dict):
+        return {k: resolve_env_vars(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [resolve_env_vars(item) for item in obj]
+    return obj
+
+# Load configuration from YAML file
+with open("config.yaml", "r") as f:
+    config = yaml.safe_load(f)
+
+# Resolve environment variable placeholders
+config = resolve_env_vars(config)
 
 # Set HF_HOME before importing transformers or any other library that uses it
-hf_home = config["local"].get("hf_home", None)
+hf_home = config.get("model", {}).get("hf_home", None)
 if hf_home is not None:
     os.environ['HF_HOME'] = hf_home
 
 import asyncio
 import pickle
+import re
+import html
 from datetime import datetime, timedelta
 from slack import send_results_to_slack, send_no_llm_processing_slack, delete_bot_messages
 from crossref import fetch_crossref_data
 from nature import fetch_nature_data
-from llm import create_llm_client, process_papers_with_llm
+from llm import process_papers_with_llm
 import llm
 
-# Check if config.toml exists
-if not os.path.exists("config.toml"):
-    print("Error: config.toml not found!")
-    print("Please create a config.toml file following the structure in config_example.toml")
-    sys.exit(1)
+
+def clean_text(text):
+    """Remove HTML tags and unescape entities."""
+    if not text:
+        return ""
+    # Unescape HTML entities first so we can catch tags like &lt;i&gt;
+    clean = html.unescape(text)
+    # Remove HTML tags (including those with newlines)
+    clean = re.sub(r'<[^>]*>', '', clean, flags=re.DOTALL)
+    # Normalize whitespace
+    clean = ' '.join(clean.split())
+    return clean.strip()
 
 
 
@@ -127,6 +176,16 @@ async def main():
         else:
             print("Nature/Springer search disabled in config")
 
+        # Post-process: Clean HTML from titles and abstracts
+        print("Cleaning HTML tags from titles and abstracts...")
+        cleaned_papers = {}
+        for title, data in papers_with_abstracts.items():
+            clean_title = clean_text(title)
+            data['abstract'] = clean_text(data.get('abstract', ''))
+            data['journal'] = clean_text(data.get('journal', ''))
+            cleaned_papers[clean_title] = data
+        papers_with_abstracts = cleaned_papers
+
         # Check if LLM processing should be performed based on paper count
         max_papers_for_llm = config.get('search', {}).get('max_papers_for_llm', 10)
         paper_count = len(papers_with_abstracts)
@@ -136,7 +195,7 @@ async def main():
         
         if paper_count > max_papers_for_llm:
             print(f"Skipping LLM processing: {paper_count} papers exceeds limit of {max_papers_for_llm}")
-            # Send email with explanation about skipped LLM processing
+            # Send notification about skipped LLM processing
             send_no_llm_processing_slack(
                 papers_with_abstracts, 
                 query, 
@@ -149,24 +208,8 @@ async def main():
             )
             return
         
-        # Check for local mode flag
-        local_mode = False
-        if "--local" in sys.argv:
-            local_mode = True
-            sys.argv.remove("--local")
-            print("Local mode enabled: Using local LLM.")
-
-
-        # Create LLM client or load local model
-        client = None
-        local_pipe = None
-        
-        if local_mode:
-            local_pipe = llm.load_local_model(config)
-        else:
-            client = create_llm_client(config)
-            
-        res = await process_papers_with_llm(papers_with_abstracts, query, client, config, local_pipe=local_pipe)
+        # Batch process papers with local LLM
+        res = await process_papers_with_llm(papers_with_abstracts, config)
         
         # Save results to pickle file for potential debugging / caching
         print("Saving results to results.pkl")

@@ -1,0 +1,108 @@
+# PaperFetch Configuration File (YAML version)
+
+search:
+  # Base query for APIs (joined with OR for Nature, space for CrossRef)
+  query:
+    - Single-Cell
+  max_papers_for_llm: 100
+  days_to_check: 20
+  springer_publication_names:
+    - Nature
+    - Nature Cancer
+    - Nature Genetics
+    - Nature Biotechnology
+    - Nature Methods
+    - Nature Communications
+
+api:
+  mailto: "faurel1@mskcc.org"
+  enable_springer: true
+  springer_api_key: ${SPRINGER_API_KEY}
+
+model:
+  name: "google/gemma-3-27b-it"
+  batch_size: 16
+  max_new_tokens: 150
+  temperature: 1.0
+  hf_home: "/home/faurel1/data/.cache/huggingface"
+
+query_sets:
+  set0:
+    name: Basic Cancer
+    multiplier: 1.0
+    terms:
+      - Cancer
+      - Tumor
+  set1:
+    name: scRNAseq
+    multiplier: 1.0
+    terms:
+      - scRNAseq
+  set2:
+    name: Tissue/cancer of interest
+    multiplier: 1.0
+    terms:
+        - Gastric Cancer
+        - Colorectal Cancer
+        - Hematopoiesis
+  set3:
+    name: Concepts Biology
+    multiplier: 1.0
+    terms:
+      - Cancer Initiation
+      - Tumor evolution
+      - Tissue Ecosystems
+  set4:
+    name: Cellular Dynamics
+    multiplier: 1.0
+    terms:
+      - Cell Fate Decisions
+      - Cell Plasticity
+  set5:
+    name: Advanced sc/spatial tech
+    multiplier: 1.0
+    terms:
+      - set to 0 if only scRNAseq is present
+      - Single cell Methylation Assay
+      - Chromatin Accessibility Assay
+      - Spatial Transcriptomic Assay
+      - Visium HD
+  set6:
+    name: Advanced sc dynamics
+    multiplier: 2.0
+    terms:
+      - Epigenetic Memory 
+      - Methylation Dynamics 
+      - Clonal Evolution
+      - Clonal Tracing
+  set7:
+    name: Regulatory effects
+    multiplier: 1.0
+    terms:
+      - Post-transcriptional Regulation
+      - Alternative Splicing
+      - Gene Regulation Dynamics
+  set8:
+    name: Large-scale datasets
+    multiplier: 1.0
+    terms:
+      - Large Patient Cohort
+      - Atlas-scale Data
+  set9:
+    name: Deep learning approaches
+    multiplier: 1.0
+    terms:
+    - Deep Generative Models
+    - Autoencoders
+  set10:
+    name: Novel computational methods
+    multiplier: 2.0
+    terms:
+    - Novel Computational Method
+    - New Algorithm
+    - New Software Tool
+
+slack:
+  bot_token: ${SLACK_BOT_TOKEN}
+  channel_id: ${SLACK_CHANNEL_ID}
+  min_score: 3.0  # Papers with final_score >= this will be posted

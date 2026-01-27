@@ -92,13 +92,10 @@ def send_paper_to_slack(paper_title: str, paper_data: dict, config: dict, previe
     # Extract data
     url = paper_data.get('url', '')
     journal = paper_data.get('journal', 'Unknown Journal')
-    rating = paper_data.get('interest_rating', 'N/A')
+    score = paper_data.get('final_score', 0)
     
     # Rating emoji based on score
-    if isinstance(rating, int):
-        rating_emoji = "🔥" if rating >= 9 else "⭐" if rating >= 7 else "📊"
-    else:
-        rating_emoji = "❓"
+    rating_emoji = "🔥" if score >= 6.0 else "⭐" if score >= 3.0 else "📊"
     
     # Format title as link
     if url:
@@ -107,7 +104,18 @@ def send_paper_to_slack(paper_title: str, paper_data: dict, config: dict, previe
         title_text = paper_title
     
     # Build plain text message
-    message = f"📄 *{title_text}*\n🏷️ {journal}  |  {rating_emoji} *{rating}/10*"
+    message = f"📄 *{title_text}*\n🏷️ {journal}  |  {rating_emoji} *Score: {score}*"
+    
+    # Add grades if available
+    grades = paper_data.get('grades', {})
+    if grades:
+        grade_details = []
+        for set_key, val in grades.items():
+            if val > 0:
+                set_name = config.get('query_sets', {}).get(set_key, {}).get('name', set_key)
+                grade_details.append(f"✓ {set_name}")
+        if grade_details:
+            message += f"  ({', '.join(grade_details)})"
     
     # Add key bullet points if available
     summary = paper_data.get('summary', [])
@@ -135,7 +143,7 @@ def send_paper_to_slack(paper_title: str, paper_data: dict, config: dict, previe
         return False
 
 
-def save_results_to_file(high_rated_papers: list, query, today, last_week) -> str:
+def save_results_to_file(high_rated_papers: list, query, today, last_week, config: dict) -> str:
     """
     Save detailed paper results to a markdown file.
     
@@ -144,6 +152,7 @@ def save_results_to_file(high_rated_papers: list, query, today, last_week) -> st
         query: Search query used
         today: Today's date
         last_week: Last week's date
+        config: Configuration dictionary
         
     Returns:
         str: Path to the saved file
@@ -158,7 +167,7 @@ def save_results_to_file(high_rated_papers: list, query, today, last_week) -> st
         f.write(f"**Papers:** {len(high_rated_papers)}\n\n")
         f.write("---\n\n")
         
-        for title, data, rating in high_rated_papers:
+        for title, data, score in high_rated_papers:
             url = data.get('url', '')
             journal = data.get('journal', 'Unknown')
             summary = data.get('summary', [])
@@ -170,9 +179,20 @@ def save_results_to_file(high_rated_papers: list, query, today, last_week) -> st
             else:
                 f.write(f"## {title}\n\n")
             
-            f.write(f"**Journal:** {journal} | **Rating:** {rating}/10\n\n")
+            f.write(f"**Journal:** {journal} | **Score:** {score}\n\n")
             
-            # Key points
+            # Matched Sets
+            grades = data.get('grades', {})
+            if grades:
+                matched_sets = []
+                for set_key, val in grades.items():
+                    if val > 0:
+                        set_name = config.get('query_sets', {}).get(set_key, {}).get('name', set_key)
+                        matched_sets.append(set_name)
+                if matched_sets:
+                    f.write(f"**Matched Categories:** {', '.join(matched_sets)}\n\n")
+            
+            # Key Points
             if summary and isinstance(summary, list):
                 f.write("### Key Points\n\n")
                 for point in summary:
@@ -192,7 +212,7 @@ def save_results_to_file(high_rated_papers: list, query, today, last_week) -> st
 
 def send_results_to_slack(results: dict, query, today, last_week, config: dict, preview: bool = False) -> int:
     """
-    Send paper results to Slack, filtering by minimum rating.
+    Send paper results to Slack, filtering by minimum score.
     
     Args:
         results: Dictionary of paper titles to paper data
@@ -204,34 +224,34 @@ def send_results_to_slack(results: dict, query, today, last_week, config: dict, 
     Returns:
         int: Number of papers successfully posted
     """
-    min_rating = config['slack'].get('min_rating', 7)
+    min_score = config['slack'].get('min_score', 1.0)
     
-    # Filter and sort papers by rating
-    high_rated_papers = []
+    # Filter and sort papers by score
+    high_scored_papers = []
     for title, data in results.items():
-        if isinstance(data, dict) and isinstance(data.get('interest_rating'), int):
-            if data['interest_rating'] >= min_rating:
-                high_rated_papers.append((title, data, data['interest_rating']))
+        if isinstance(data, dict) and 'final_score' in data:
+            if data['final_score'] >= min_score:
+                high_scored_papers.append((title, data, data['final_score']))
     
-    # Sort by rating (highest first)
-    high_rated_papers.sort(key=lambda x: x[2], reverse=True)
+    # Sort by score (highest first)
+    high_scored_papers.sort(key=lambda x: x[2], reverse=True)
     
-    if not high_rated_papers:
+    if not high_scored_papers:
         query_str = ' '.join(query) if isinstance(query, list) else query
-        print(f"No papers with rating >= {min_rating} to post to Slack")
+        print(f"No papers with score >= {min_score} to post to Slack")
         _post_summary_message(
             config,
             f"📚 *PaperFetch Results*\n"
             f"Query: {query_str}\n"
             f"Date range: {last_week} to {today}\n"
             f"Papers found: {len(results)}\n"
-            f"Papers meeting threshold (≥{min_rating}): 0",
+            f"Papers meeting threshold (≥{min_score}): 0",
             preview=preview
         )
         return 0
     
     # Save detailed results to file
-    save_results_to_file(high_rated_papers, query, today, last_week)
+    save_results_to_file(high_scored_papers, query, today, last_week, config)
     
     # Post header message
     query_str = ' '.join(query) if isinstance(query, list) else query
@@ -239,22 +259,22 @@ def send_results_to_slack(results: dict, query, today, last_week, config: dict, 
         f"📚 *PaperFetch Results*\n"
         f"Query: {query_str}\n"
         f"Date range: {last_week} to {today}\n"
-        f"Papers with rating ≥{min_rating}: {len(high_rated_papers)} of {len(results)} total\n"
+        f"Papers with score ≥{min_score}: {len(high_scored_papers)} of {len(results)} total\n"
         f"React with 👀 to show interest!"
     )
     _post_summary_message(config, header, preview=preview)
     
     # Post each paper (compact - title and metadata only)
     success_count = 0
-    for title, data, rating in high_rated_papers:
+    for title, data, score in high_scored_papers:
         if send_paper_to_slack(title, data, config, preview=preview):
             success_count += 1
-            print(f"Posted to Slack (rating {rating}): {title[:50]}...")
+            print(f"Posted to Slack (score {score}): {title[:50]}...")
         else:
             print(f"Failed to post to Slack: {title[:50]}...")
     
     print(f"\n{'='*80}")
-    print(f"SLACK NOTIFICATIONS SENT: {success_count}/{len(high_rated_papers)} papers")
+    print(f"SLACK NOTIFICATIONS SENT: {success_count}/{len(high_scored_papers)} papers")
     print(f"{'='*80}")
     
     return success_count
