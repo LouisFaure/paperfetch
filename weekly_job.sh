@@ -10,7 +10,7 @@
 
 # Run paperfetch
 cd /home/faurel1/tools/paperfetch
-uv run main.py --local
+uv run main.py
 
 # Resubmit this same script to run in 7 days
 sbatch --begin=now+7days "$0"
