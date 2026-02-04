@@ -1,15 +1,15 @@
 from sprynger import Meta, init
 from datetime import datetime, timedelta
 import time
-import requests # For catching status codes if needed
+import pandas as pd
 
 def fetch_nature_data(query, config):
     """
     Fetch research papers from Nature/Springer API for the last week.
     
     Args:
-        query (list): List of search terms to be joined with " AND "
-        config (dict): Configuration dictionary containing API settings
+        query (list): List of search terms.
+        config (dict): Configuration dictionary containing API settings.
         
     Returns:
         tuple: (papers_with_abstracts dict, today date, last_week date)
@@ -23,6 +23,12 @@ def fetch_nature_data(query, config):
     
     # Get publication names filter from config (optional)
     publication_names = config.get("search", {}).get("springer_publication_names", None)
+    publication_names_set = None
+    if publication_names:
+        if isinstance(publication_names, str):
+            publication_names = [publication_names]
+        # Normalize to lower case for filtering
+        publication_names_set = set(name.lower() for name in publication_names)
 
     # Calculate dynamic date range
     today = datetime.now().date()
@@ -32,112 +38,96 @@ def fetch_nature_data(query, config):
     date_from = last_week.strftime('%Y-%m-%d')
     date_to = today.strftime('%Y-%m-%d')
     
-    # Create dictionary to store titles, abstracts, and URLs
+    # Collect all potential records in a list of dicts first
+    all_records = []
+    
+    for term in query:
+        print(f"Searching Nature/Springer for: {term}")
+        query_str = f'"{term}"'
+        
+        # Pagination disabled as requested - fetching single page
+        try:
+            # Create Meta search object
+            # Using nr_results=500 to get a good batch without looping if API supports it, otherwise it might cap at 100
+            meta = Meta(
+                query=query_str,
+                datefrom=date_from,
+                dateto=date_to,
+                nr_results=500,
+                start=1
+            )
+            
+            # Check total results
+            if hasattr(meta, 'results') and hasattr(meta.results, 'total'):
+                total_results = int(meta.results.total)
+                print(f"  Found {total_results} total matches for '{term}' (fetching top results)")
+            
+            records_found = 0
+            for record in meta:
+                records_found += 1
+                
+                # Basic validity check (must have title)
+                if not (hasattr(record, 'title') and record.title):
+                     continue
+                     
+                # Extract fields
+                rec_data = {
+                    'title': record.title,
+                    'abstract': getattr(record, 'abstract', None),
+                    'publicationName': getattr(record, 'publicationName', None),
+                    'doi': getattr(record, 'doi', None),
+                    'url': getattr(record, 'url', None)
+                }
+                all_records.append(rec_data)
+            
+            # Be polite to the API
+            time.sleep(0.2)
+            
+        except Exception as e:
+            print(f"  Error fetching results for '{term}': {e}")
+
+    # If no records found, return empty
+    if not all_records:
+        return {}, today, last_week
+
+    # Convert to DataFrame for efficient processing
+    df = pd.DataFrame(all_records)
+    
+    # Drop records without abstract
+    df = df[df['abstract'].notna() & (df['abstract'] != '')]
+    
+    # Deduplicate by title (or doi if preferred, but title matches prev logic)
+    # We can also drop duplicates by DOI if present to be safer
+    df = df.drop_duplicates(subset=['title'])
+    
+    # Filter by journal if specified
+    if publication_names_set:
+        # Create a lowercase column for filtering
+        df['pub_lower'] = df['publicationName'].apply(lambda x: x.lower() if isinstance(x, str) else '')
+        # Check against the set
+        # Since isin takes a list/set, this is efficient
+        df = df[df['pub_lower'].isin(publication_names_set)]
+    
+    # Convert back to expected output format
     papers_with_abstracts = {}
     
-    # Convert publication_names to set for efficient lookup and query construction
-    journal_filter = None
-    if publication_names:
-        if isinstance(publication_names, str):
-            # If single string, convert to list
-            publication_names = [publication_names]
-        publication_names_set = set(name.lower() for name in publication_names)
+    for _, row in df.iterrows():
+        title = row['title']
+        abstract = row['abstract']
         
-        # Construct journal filter for API query: (journal:"Nature" OR journal:"Nature Cancer" OR ...)
-        journal_parts = [f'journal:"{name}"' for name in publication_names]
-        journal_filter = f"({ ' OR '.join(journal_parts) })"
-    else:
-        publication_names_set = None
-
-    # Loop through each search term individually to improve capture reliability
-    for term in query:
-        # Construct the query string with journal filter if available
-        query_str = f'"{term}"'
-        if journal_filter:
-            query_str = f"{query_str} AND {journal_filter}"
+        # Determine URL
+        url = None
+        if row['doi']:
+            url = f"https://doi.org/{row['doi']}"
+        elif row['url']:
+            url = row['url']
             
-        print(f"Searching Nature/Springer for: {query_str}")
+        journal = row['publicationName']
         
-        start = 1
-        total_results = 1 # Initial value to enter the loop
-        
-        while start <= total_results:
-            try:
-                # Create Meta search object for the specific term and page
-                meta = Meta(
-                    query=query_str,
-                    datefrom=date_from,
-                    dateto=date_to,
-                    nr_results=100,
-                    start=start
-                )
-                
-                # Update total results on the first call
-                if start == 1:
-                    total_results = getattr(meta.results, 'total', 0)
-                    if total_results > 0:
-                        print(f"  Found {total_results} total matches for this keyword in target journals.")
-                    else:
-                        print("  No matches found for this keyword in target journals.")
-                        break
-                
-                # Loop through records and collect those with abstracts
-                for record in meta:
-                    title = record.title if record.title else "No title"
-                    
-                    # Skip if we already have this paper (deduplication)
-                    if title in papers_with_abstracts:
-                        continue
-        
-                    # Only include papers that have an abstract
-                    if hasattr(record, 'abstract') and record.abstract:
-                        # Double check journal filter (case-insensitive) just in case API returns fuzzy matches
-                        if publication_names_set is not None:
-                            if not hasattr(record, 'publicationName') or record.publicationName is None:
-                                continue
-                            if record.publicationName.lower() not in publication_names_set:
-                                continue
-                        
-                        abstract = record.abstract
-                        
-                        # Get URL from DOI (preferred)
-                        url = None
-                        if hasattr(record, 'doi') and record.doi:
-                            url = f"https://doi.org/{record.doi}"
-                        elif hasattr(record, 'url') and record.url:
-                            url = record.url
-                        
-                        # Get journal name from publicationName
-                        journal = None
-                        if hasattr(record, 'publicationName') and record.publicationName:
-                            journal = record.publicationName
-                        
-                        # Store title, abstract, URL, and journal
-                        papers_with_abstracts[title] = {
-                            "abstract": abstract,
-                            "url": url,
-                            "journal": journal
-                        }
-                
-                # Increment start for the next page
-                start += 100
-                
-                # Safety break to avoid excessive fetching for extremely broad queries
-                if start > 2000: 
-                    print("  Reached safety limit of 2000 results for this keyword. Stopping.")
-                    break
-                    
-                # Small delay to be polite to the API
-                time.sleep(0.5)
-                
-            except Exception as e:
-                if "403" in str(e):
-                    print(f"  Rate limit or auth error (403) at start={start}. Waiting 5s...")
-                    time.sleep(5)
-                    # We could retry or break. Let's try to break to avoid getting fully blocked
-                    break
-                else:
-                    print(f"  Error fetching page starting at {start}: {e}")
-                    break
-    
+        papers_with_abstracts[title] = {
+            "abstract": abstract,
+            "url": url,
+            "journal": journal
+        }
+            
     return papers_with_abstracts, today, last_week
