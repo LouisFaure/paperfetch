@@ -3,9 +3,18 @@
 search:
   # Base query for APIs (joined with OR for Nature, space for CrossRef)
   query:
-    - Single-Cell
+    - inflammation
+    - single cell
+    - cancer
+    - tumor
+    - tissue dynamics
+    - hematopoiesis
+    - tumour
+    - immune
+    - immunity
+    - perturbation
   max_papers_for_llm: 100
-  days_to_check: 20
+  days_to_check: 7
   springer_publication_names:
     - Nature
     - Nature Cancer
@@ -13,6 +22,9 @@ search:
     - Nature Biotechnology
     - Nature Methods
     - Nature Communications
+    - Nature Medicine
+    - Nature medicine
+    - Nature Immunology
 
 api:
   mailto: "faurel1@mskcc.org"
@@ -23,84 +35,54 @@ model:
   name: "google/gemma-3-27b-it"
   batch_size: 16
   max_new_tokens: 150
-  temperature: 1.0
+  temperature: 0.1
   hf_home: "/home/faurel1/data/.cache/huggingface"
 
 query_sets:
   set0:
     name: Basic Cancer
     multiplier: 1.0
-    terms:
-      - Cancer
-      - Tumor
+    question: "Does this study focuses on Cancer or Tumor?"
   set1:
     name: scRNAseq
     multiplier: 1.0
-    terms:
-      - scRNAseq
+    question: "Does this study use scRNAseq method?"
   set2:
     name: Tissue/cancer of interest
     multiplier: 1.0
-    terms:
-        - Gastric Cancer
-        - Colorectal Cancer
-        - Hematopoiesis
+    question: "Does this study focuses on Gastric Cancer, Colorectal Cancer, or Hematopoiesis?"
   set3:
     name: Concepts Biology
     multiplier: 1.0
-    terms:
-      - Cancer Initiation
-      - Tumor evolution
-      - Tissue Ecosystems
+    question: "Does this study focuses on Cancer Initiation, Tumor evolution, or Tissue Ecosystems?"
   set4:
     name: Cellular Dynamics
     multiplier: 1.0
-    terms:
-      - Cell Fate Decisions
-      - Cell Plasticity
+    question: "Does this study focuses on Cell Fate Decisions or Cell Plasticity?"
   set5:
     name: Advanced sc/spatial tech
     multiplier: 1.0
-    terms:
-      - set to 0 if only scRNAseq is present
-      - Single cell Methylation Assay
-      - Chromatin Accessibility Assay
-      - Spatial Transcriptomic Assay
-      - Visium HD
+    question: "Does this study use Single cell Methylation Assay, Chromatin Accessibility Assay, Spatial Transcriptomic Assay (NOT scRNAseq), or Visium HD?"
   set6:
     name: Advanced sc dynamics
     multiplier: 2.0
-    terms:
-      - Epigenetic Memory 
-      - Methylation Dynamics 
-      - Clonal Evolution
-      - Clonal Tracing
+    question: "Does this study focuses on epigenetic memory, methylation dynamics, clonal evolution, or clonal tracing?"
   set7:
     name: Regulatory effects
     multiplier: 1.0
-    terms:
-      - Post-transcriptional Regulation
-      - Alternative Splicing
-      - Gene Regulation Dynamics
+    question: "Does this study focuses on Post-transcriptional Regulation, Alternative Splicing, or Gene Regulation Dynamics?"
   set8:
     name: Large-scale datasets
     multiplier: 1.0
-    terms:
-      - Large Patient Cohort
-      - Atlas-scale Data
+    question: "Does this study provide a novel and unique Large Patient Cohort or Atlas-scale single cell data?"
   set9:
     name: Deep learning approaches
     multiplier: 1.0
-    terms:
-    - Deep Generative Models
-    - Autoencoders
+    question: "Did this study develop a new tool using Deep Generative Models or Autoencoders?"
   set10:
     name: Novel computational methods
     multiplier: 2.0
-    terms:
-    - Novel Computational Method
-    - New Algorithm
-    - New Software Tool
+    question: "Does this study provide a new computational tool, computational library, or computational method of analysis?"
 
 slack:
   bot_token: ${SLACK_BOT_TOKEN}
