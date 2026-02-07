@@ -177,11 +177,19 @@ async def main():
             print("Nature/Springer search disabled in config")
 
         # Post-process: Clean HTML from titles and abstracts
-        print("Cleaning HTML tags from titles and abstracts...")
+        print("Cleaning HTML tags from titles and abstracts and filtering short abstracts...")
         cleaned_papers = {}
+        MIN_ABSTRACT_LENGTH = 250
         for title, data in papers_with_abstracts.items():
             clean_title = clean_text(title)
-            data['abstract'] = clean_text(data.get('abstract', ''))
+            abstract = clean_text(data.get('abstract', ''))
+            
+            # Filter out abstracts that are too short
+            if len(abstract) < MIN_ABSTRACT_LENGTH:
+                print(f"Filtering out '{clean_title[:50]}...' (abstract too short: {len(abstract)} chars)")
+                continue
+
+            data['abstract'] = abstract
             data['journal'] = clean_text(data.get('journal', ''))
             cleaned_papers[clean_title] = data
         papers_with_abstracts = cleaned_papers
