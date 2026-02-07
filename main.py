@@ -16,6 +16,21 @@ def load_dotenv(path=".env"):
 
 load_dotenv()
 
+# Check for help flag
+if "--help" in sys.argv or "-h" in sys.argv:
+    print("Usage: python main.py [options]")
+    print()
+    print("Fetch and process academic papers from CrossRef and Nature/Springer APIs.")
+    print()
+    print("Options:")
+    print("  --preview          Enable preview mode: print Slack messages to stdout instead of sending")
+    print("  --cache            Use cached results from results.pkl if available")
+    print("  --cleanup N        Delete bot messages from Slack from the last N minutes")
+    print("  --help, -h         Show this help message")
+    print()
+    print("Configuration is read from config.yaml. Ensure it exists and is properly configured.")
+    sys.exit(0)
+
 # Check if config.yaml exists
 if not os.path.exists("config.yaml"):
     print("Error: config.yaml not found!")
