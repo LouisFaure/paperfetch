@@ -1,7 +1,7 @@
 # PaperFetch Configuration File (YAML version)
 
 search:
-  # Base query for APIs (joined with OR for Nature, space for CrossRef)
+  # Base query for APIs (space-separated for CrossRef, combined for PubMed)
   query:
     - inflammation
     - single cell
@@ -13,9 +13,11 @@ search:
     - immune
     - immunity
     - perturbation
-  max_papers_for_llm: 300
-  days_to_check: 11
-  springer_publication_names:
+  max_papers_for_llm: 500
+  days_to_check: 12
+  # Optional: Filter PubMed results to specific journals
+  # If not specified, all journals will be included
+  journals:
     - Nature
     - Nature Cancer
     - Nature Genetics
@@ -25,11 +27,16 @@ search:
     - Nature Medicine
     - Nature medicine
     - Nature Immunology
+    - Cell
+    - Cell Cancer
+    - Cell Genomics
+    - Science
+    - Science Advances
+    - Science Immunology
 
 api:
-  mailto: "faurel1@mskcc.org"
-  enable_springer: true
-  springer_api_key: ${SPRINGER_API_KEY}
+  mailto: "${PUBMED_EMAIL}"  # Required for PubMed API
+  enable_pubmed: true
 
 model:
   name: "google/gemma-3-27b-it"

@@ -20,7 +20,7 @@ load_dotenv()
 if "--help" in sys.argv or "-h" in sys.argv:
     print("Usage: python main.py [options]")
     print()
-    print("Fetch and process academic papers from CrossRef and Nature/Springer APIs.")
+    print("Fetch and process academic papers from CrossRef and PubMed APIs.")
     print()
     print("Options:")
     print("  --preview          Enable preview mode: print Slack messages to stdout instead of sending")
@@ -74,7 +74,7 @@ import html
 from datetime import datetime, timedelta
 from slack import send_results_to_slack, send_no_llm_processing_slack, delete_bot_messages
 from crossref import fetch_crossref_data
-from nature import fetch_nature_data
+from pubmed import fetch_pubmed_data
 from llm import process_papers_with_llm
 import llm
 
@@ -174,22 +174,22 @@ async def main():
         papers_with_abstracts, today, last_week = fetch_crossref_data(query, config)
         print(f"Found {len(papers_with_abstracts)} papers from CrossRef")
         
-        # Fetch papers from Nature/Springer if enabled
-        if config.get('api', {}).get('enable_springer', False):
-            print("Fetching papers from Nature/Springer...")
+        # Fetch papers from PubMed if enabled
+        if config.get('api', {}).get('enable_pubmed', True):
+            print("Fetching papers from PubMed...")
             try:
-                nature_papers, _, _ = fetch_nature_data(query, config)
-                print(f"Found {len(nature_papers)} papers from Nature/Springer")
+                pubmed_papers, _, _ = fetch_pubmed_data(query, config)
+                print(f"Found {len(pubmed_papers)} papers from PubMed")
                 
-                # Merge Nature papers with CrossRef papers
-                # Papers with the same title will be overwritten (Nature takes precedence)
-                papers_with_abstracts.update(nature_papers)
+                # Merge PubMed papers with CrossRef papers
+                # Papers with the same title will be overwritten (PubMed takes precedence)
+                papers_with_abstracts.update(pubmed_papers)
                 print(f"Total papers after merging: {len(papers_with_abstracts)}")
             except Exception as e:
-                print(f"Error fetching from Nature/Springer: {e}")
+                print(f"Error fetching from PubMed: {e}")
                 print("Continuing with CrossRef results only...")
         else:
-            print("Nature/Springer search disabled in config")
+            print("PubMed search disabled in config")
 
         # Post-process: Clean HTML from titles and abstracts
         print("Cleaning HTML tags from titles and abstracts and filtering short abstracts...")
