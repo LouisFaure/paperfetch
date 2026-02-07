@@ -13,8 +13,8 @@ search:
     - immune
     - immunity
     - perturbation
-  max_papers_for_llm: 100
-  days_to_check: 7
+  max_papers_for_llm: 300
+  days_to_check: 11
   springer_publication_names:
     - Nature
     - Nature Cancer
